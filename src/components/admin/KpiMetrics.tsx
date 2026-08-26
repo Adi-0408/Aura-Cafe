@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useInventory } from '../../context/InventoryContext';
 import { StockFilter } from '../../types';
 import { formatCurrency } from '../../utils/currency';
@@ -16,6 +17,7 @@ interface KpiMetricsProps {
 
 export const KpiMetrics: React.FC<KpiMetricsProps> = ({ activeFilter, onSelectFilter }) => {
   const { stats, inventory } = useInventory();
+  const navigate = useNavigate();
 
   const activeItemsCount = inventory.filter(i => !i.isArchived).length;
   const inStockCount = inventory.filter(i => !i.isArchived && i.quantity > i.minThreshold).length;
@@ -36,7 +38,8 @@ export const KpiMetrics: React.FC<KpiMetricsProps> = ({ activeFilter, onSelectFi
         ? 'border-[#1B8585] ring-2 ring-[#1B8585]/20 bg-gradient-to-b from-white to-[#F2F8F8] shadow-warm-md' 
         : 'border-[#D2DFE2]/80 bg-white hover:border-[#1B8585]/50 hover:shadow-warm-sm',
       bgIcon: 'bg-[#EBF7F7] text-[#1B8585] border border-[#A3DEDE]',
-      badge: 'Active Catalog'
+      badge: 'Active Catalog',
+      navigateTo: null
     },
     {
       id: 'valuation' as any,
@@ -49,7 +52,8 @@ export const KpiMetrics: React.FC<KpiMetricsProps> = ({ activeFilter, onSelectFi
       borderClass: 'border-[#D2DFE2]/80 bg-white hover:shadow-warm-sm',
       bgIcon: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
       noFilter: true,
-      badge: 'Asset Value'
+      badge: 'Asset Value',
+      navigateTo: null
     },
     {
       id: 'low_stock' as StockFilter,
@@ -59,22 +63,27 @@ export const KpiMetrics: React.FC<KpiMetricsProps> = ({ activeFilter, onSelectFi
       icon: <AlertTriangle className="w-5 h-5 text-amber-600" />,
       accentColor: 'from-amber-500 to-amber-700',
       colorClass: stats.lowStockCount > 0 ? 'text-amber-900' : 'text-stone-700',
-      borderClass: activeFilter === 'low_stock' 
-        ? 'border-amber-500 ring-2 ring-amber-500/20 bg-gradient-to-b from-white to-amber-50/40 shadow-warm-md' 
-        : 'border-[#D2DFE2]/80 bg-white hover:border-amber-400 hover:shadow-warm-sm',
+      borderClass: 'border-[#D2DFE2]/80 bg-white hover:border-amber-400 hover:shadow-warm-sm',
       bgIcon: stats.lowStockCount > 0 ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-stone-100 text-stone-600 border border-stone-200',
-      badge: stats.lowStockCount > 0 ? 'Needs Restock' : 'All Clear'
+      badge: stats.lowStockCount > 0 ? 'Needs Restock' : 'All Clear',
+      navigateTo: '/admin/restock'
     },
   ];
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
       {cards.map((card) => {
-        const isClickable = !card.noFilter;
+        const isClickable = !card.noFilter || Boolean(card.navigateTo);
         return (
           <div
             key={card.label}
-            onClick={() => isClickable && onSelectFilter(card.id)}
+            onClick={() => {
+              if (card.navigateTo) {
+                navigate(card.navigateTo);
+              } else if (isClickable) {
+                onSelectFilter(card.id);
+              }
+            }}
             className={`p-5 sm:p-6 rounded-3xl border transition-all duration-200 flex flex-col justify-between space-y-4 relative overflow-hidden ${card.borderClass} ${isClickable ? 'cursor-pointer hover:-translate-y-0.5 group' : ''}`}
           >
             {/* Top Row: Label & Category Badge */}
@@ -97,12 +106,17 @@ export const KpiMetrics: React.FC<KpiMetricsProps> = ({ activeFilter, onSelectFi
               </p>
             </div>
 
-            {/* Bottom: Filter Pill CTA */}
+            {/* Bottom: Filter / Navigation Pill CTA */}
             <div className="pt-2 border-t border-black/5 flex items-center justify-between text-xs">
               <span className="text-[11px] font-semibold text-stone-400">
                 {card.badge}
               </span>
-              {isClickable && (
+              {card.navigateTo ? (
+                <span className="inline-flex items-center gap-1 text-amber-700 font-bold text-xs group-hover:translate-x-0.5 transition-transform">
+                  <span>Restock Warnings</span>
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                </span>
+              ) : isClickable && (
                 <span className="inline-flex items-center gap-1 text-[#1B8585] font-bold text-xs group-hover:translate-x-0.5 transition-transform">
                   <span>{activeFilter === card.id ? 'Active Filter' : 'Filter View'}</span>
                   <ArrowUpRight className="w-3.5 h-3.5" />
