@@ -1,0 +1,83 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function: Check if request is from an authenticated user
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function: Check if user is an administrator
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.email == 'adityapatil.4132@gmail.com' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    // Helper function: Check if user is staff or admin
+    function isStaffOrAdmin() {
+      return isAuthenticated() && (
+        isAdmin() ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'staff'
+      );
+    }
+
+    // 1. Menu Items: Public read, Authenticated staff/admin write
+    match /menu_items/{itemId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    // 2. Inventory Items: Strict authenticated staff/admin read & write
+    match /inventory/{itemId} {
+      allow read, write: if isStaffOrAdmin();
+
+      // Sub-collection: Append-only audit trail logs for stock adjustments
+      match /logs/{logId} {
+        allow read: if isStaffOrAdmin();
+        allow create: if isStaffOrAdmin();
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    // 3. Reservations: Public creation, Authenticated staff/admin management
+    match /reservations/{reservationId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if isStaffOrAdmin();
+    }
+
+    // 4. Users & Customer Profiles: Users can read/update own record; Admins have full access
+    match /users/{userId} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if isAuthenticated() && (request.auth.uid == userId || isStaffOrAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // 5. Messages & Contact Inquiries: Public creation, Admin management
+    match /messages/{messageId} {
+      allow create: if true;
+      allow read, update, delete: if isStaffOrAdmin();
+    }
+
+    // 6. System Settings & Promotions: Public read, Staff/Admin write
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    // 7. Restock & Purchase Orders: Staff/Admin read & write
+    match /restock_orders/{orderId} {
+      allow read, write: if isStaffOrAdmin();
+    }
+
+    // 8. Tables: Public read, Staff/Admin write
+    match /tables/{tableId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+  }
+}
