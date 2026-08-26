@@ -4,13 +4,13 @@ import { getFirestore, Firestore } from 'firebase/firestore';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyD2cj59OgLhV-W3X2OxIwZnxVU1u5punn4",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "cafe-b44ea.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "cafe-b44ea",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "cafe-b44ea.firebasestorage.app",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "768709141985",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:768709141985:web:06c2575ce97553185c9ea0",
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-19TXB7SBD9"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyCsWopaxk_-_qe0hgtUs_tSlLioYlXqObY",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "auracafe-76d5e.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "auracafe-76d5e",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "auracafe-76d5e.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "308647716690",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:308647716690:web:517fb3ec6f2089729ebc8b",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-RSEV852P08"
 };
 
 // Initialize Firebase safely
