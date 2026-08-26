@@ -15,7 +15,8 @@ import {
   Upload,
   Camera,
   Image as ImageIcon,
-  Trash2
+  Trash2,
+  XCircle
 } from 'lucide-react';
 
 interface ReceiveDeliveryModalProps {
@@ -31,7 +32,7 @@ export const ReceiveDeliveryModal: React.FC<ReceiveDeliveryModalProps> = ({
   onClose,
   onSuccess
 }) => {
-  const { receiveRestockDelivery, isSyncing } = useInventory();
+  const { receiveRestockDelivery, cancelRestockOrder, isSyncing } = useInventory();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [invoiceNo, setInvoiceNo] = useState<string>(() => `INV-${Math.floor(10000 + Math.random() * 90000)}`);
@@ -40,6 +41,7 @@ export const ReceiveDeliveryModal: React.FC<ReceiveDeliveryModalProps> = ({
   const [livePhotoUrl, setLivePhotoUrl] = useState<string | null>(null);
   const [deliveryNotes, setDeliveryNotes] = useState<string>('Items inspected and verified in good condition.');
   const [error, setError] = useState<string | null>(null);
+  const [showCancelPrompt, setShowCancelPrompt] = useState(false);
 
   // Initialize actual quantities from ordered quantities
   React.useEffect(() => {
@@ -55,6 +57,17 @@ export const ReceiveDeliveryModal: React.FC<ReceiveDeliveryModalProps> = ({
   }, [order]);
 
   if (!isOpen || !order) return null;
+
+  const handleCancelPurchaseOrder = async () => {
+    if (!order) return;
+    try {
+      await cancelRestockOrder(order.id);
+      if (onSuccess) onSuccess();
+      onClose();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to cancel purchase order.');
+    }
+  };
 
   const handleQtyChange = (itemId: string, qty: number) => {
     setActualQuantities(prev => ({
@@ -350,23 +363,56 @@ export const ReceiveDeliveryModal: React.FC<ReceiveDeliveryModalProps> = ({
           </div>
 
           {/* Action Buttons */}
-          <div className="pt-3 border-t border-[#D2DFE2] flex items-center justify-end gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-5 py-2.5 rounded-xl text-xs font-semibold text-stone-600 hover:bg-stone-200 transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
+          <div className="pt-3 border-t border-[#D2DFE2] flex flex-col sm:flex-row items-center justify-between gap-3">
+            {showCancelPrompt ? (
+              <div className="flex items-center gap-2 bg-rose-50 p-1.5 px-3 rounded-xl border border-rose-200">
+                <span className="text-xs text-rose-900 font-bold">Cancel this PO entirely?</span>
+                <button
+                  type="button"
+                  disabled={isSyncing}
+                  onClick={handleCancelPurchaseOrder}
+                  className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                >
+                  Yes, Cancel PO
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCancelPrompt(false)}
+                  className="px-2 py-1 rounded-lg text-stone-500 hover:bg-white text-xs font-semibold cursor-pointer"
+                >
+                  Keep PO
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowCancelPrompt(true)}
+                className="text-xs font-semibold text-rose-600 hover:text-rose-800 transition-colors flex items-center gap-1.5 cursor-pointer py-1 self-start sm:self-auto"
+                title="Cancel and void this purchase order"
+              >
+                <XCircle className="w-4 h-4 text-rose-500" />
+                <span>Cancel this Order instead</span>
+              </button>
+            )}
 
-            <button
-              type="submit"
-              disabled={isSyncing}
-              className="px-6 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition-all shadow-sm active:scale-95 flex items-center gap-2 disabled:opacity-50 cursor-pointer"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              <span>Confirm Delivery & Credit Stock</span>
-            </button>
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-5 py-2.5 rounded-xl text-xs font-semibold text-stone-600 hover:bg-stone-200 transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+
+              <button
+                type="submit"
+                disabled={isSyncing}
+                className="px-6 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition-all shadow-sm active:scale-95 flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Confirm Delivery & Credit Stock</span>
+              </button>
+            </div>
           </div>
 
         </form>

@@ -34,7 +34,9 @@ import {
   Camera,
   AlertTriangle,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  MoreVertical,
+  Ban
 } from 'lucide-react';
 
 export const StockOrdersManager: React.FC = () => {
@@ -49,7 +51,42 @@ export const StockOrdersManager: React.FC = () => {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [receivingOrder, setReceivingOrder] = useState<RestockOrder | null>(null);
   const [inspectOrder, setInspectOrder] = useState<RestockOrder | null>(null);
+  const [orderToCancel, setOrderToCancel] = useState<RestockOrder | null>(null);
+  const [activeDropdownPOId, setActiveDropdownPOId] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
+
+  // Close dropdown on outside click
+  React.useEffect(() => {
+    const handleDocumentClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.po-action-menu-container')) {
+        setActiveDropdownPOId(null);
+      }
+    };
+    if (activeDropdownPOId) {
+      document.addEventListener('mousedown', handleDocumentClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleDocumentClick);
+    };
+  }, [activeDropdownPOId]);
+
+  const handleCancelConfirm = async () => {
+    if (!orderToCancel) return;
+    const target = orderToCancel;
+    setOrderToCancel(null);
+    if (inspectOrder?.id === target.id) {
+      setInspectOrder(null);
+    }
+    try {
+      await cancelRestockOrder(target.id);
+      setActionNotice(`Purchase Order #${target.orderNumber} was cancelled.`);
+      setTimeout(() => setActionNotice(null), 4000);
+    } catch (err: any) {
+      setActionNotice(err?.message || 'Failed to cancel order.');
+      setTimeout(() => setActionNotice(null), 4000);
+    }
+  };
 
   // Extract unique supplier names for filter
   const suppliersList = useMemo(() => {
@@ -439,7 +476,7 @@ export const StockOrdersManager: React.FC = () => {
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 po-action-menu-container">
                     {/* PDF Button */}
                     <button
                       type="button"
@@ -472,6 +509,87 @@ export const StockOrdersManager: React.FC = () => {
                     >
                       <Eye className="w-4 h-4" />
                     </button>
+
+                    {/* Action Trigger Menu */}
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveDropdownPOId(activeDropdownPOId === order.id ? null : order.id);
+                        }}
+                        className={`p-1.5 rounded-xl border transition-colors cursor-pointer ${
+                          activeDropdownPOId === order.id
+                            ? 'bg-[#10222B] text-white border-[#10222B]'
+                            : 'bg-white hover:bg-[#E5ECEE] text-stone-500 border-[#D2DFE2]'
+                        }`}
+                        title="Trigger Order Actions"
+                      >
+                        <MoreVertical className="w-4 h-4" />
+                      </button>
+
+                      {/* Floating Triggered Menu */}
+                      {activeDropdownPOId === order.id && (
+                        <div 
+                          className="absolute right-0 bottom-full mb-2 z-30 w-52 bg-white rounded-2xl border border-[#D2DFE2] shadow-warm-xl p-1.5 animate-fade-in divide-y divide-[#D2DFE2]/50"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="py-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveDropdownPOId(null);
+                                setInspectOrder(order);
+                              }}
+                              className="w-full px-3 py-1.5 text-left text-xs font-semibold text-stone-700 hover:bg-[#F2F6F7] rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-[#1B8585]" />
+                              <span>Inspect PO Details</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveDropdownPOId(null);
+                                exportSingleRestockOrderPDF(order);
+                              }}
+                              className="w-full px-3 py-1.5 text-left text-xs font-semibold text-stone-700 hover:bg-[#F2F6F7] rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
+                            >
+                              <Printer className="w-3.5 h-3.5 text-[#1B8585]" />
+                              <span>Download PDF</span>
+                            </button>
+                          </div>
+
+                          {isInTransit && (
+                            <div className="py-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveDropdownPOId(null);
+                                  setReceivingOrder(order);
+                                }}
+                                className="w-full px-3 py-1.5 text-left text-xs font-semibold text-emerald-800 hover:bg-emerald-50 rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
+                              >
+                                <PackageCheck className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>Receive Shipment</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveDropdownPOId(null);
+                                  setOrderToCancel(order);
+                                }}
+                                className="w-full px-3 py-1.5 text-left text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
+                              >
+                                <Ban className="w-3.5 h-3.5 text-rose-500" />
+                                <span>Cancel Order</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -542,7 +660,7 @@ export const StockOrdersManager: React.FC = () => {
                       </td>
 
                       <td className="py-4 px-6 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+                        <div className="flex items-center justify-end gap-1.5 po-action-menu-container">
                           <button
                             type="button"
                             onClick={() => exportSingleRestockOrderPDF(order)}
@@ -571,6 +689,86 @@ export const StockOrdersManager: React.FC = () => {
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </button>
+
+                          {/* Trigger Menu */}
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveDropdownPOId(activeDropdownPOId === order.id ? null : order.id);
+                              }}
+                              className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                                activeDropdownPOId === order.id
+                                  ? 'bg-[#10222B] text-white border-[#10222B]'
+                                  : 'text-stone-500 hover:text-[#10222B] hover:bg-stone-100 border-[#D2DFE2]'
+                              }`}
+                              title="Order Options"
+                            >
+                              <MoreVertical className="w-3.5 h-3.5" />
+                            </button>
+
+                            {activeDropdownPOId === order.id && (
+                              <div 
+                                className="absolute right-0 bottom-full mb-1.5 z-30 w-48 bg-white rounded-2xl border border-[#D2DFE2] shadow-warm-xl p-1.5 animate-fade-in divide-y divide-[#D2DFE2]/50 text-left"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <div className="py-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveDropdownPOId(null);
+                                      setInspectOrder(order);
+                                    }}
+                                    className="w-full px-3 py-1.5 text-left text-xs font-semibold text-stone-700 hover:bg-[#F2F6F7] rounded-xl flex items-center gap-2 cursor-pointer"
+                                  >
+                                    <Eye className="w-3.5 h-3.5 text-[#1B8585]" />
+                                    <span>Inspect Details</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveDropdownPOId(null);
+                                      exportSingleRestockOrderPDF(order);
+                                    }}
+                                    className="w-full px-3 py-1.5 text-left text-xs font-semibold text-stone-700 hover:bg-[#F2F6F7] rounded-xl flex items-center gap-2 cursor-pointer"
+                                  >
+                                    <Printer className="w-3.5 h-3.5 text-[#1B8585]" />
+                                    <span>Download PDF</span>
+                                  </button>
+                                </div>
+
+                                {isInTransit && (
+                                  <div className="py-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setActiveDropdownPOId(null);
+                                        setReceivingOrder(order);
+                                      }}
+                                      className="w-full px-3 py-1.5 text-left text-xs font-semibold text-emerald-800 hover:bg-emerald-50 rounded-xl flex items-center gap-2 cursor-pointer"
+                                    >
+                                      <PackageCheck className="w-3.5 h-3.5 text-emerald-600" />
+                                      <span>Receive Shipment</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setActiveDropdownPOId(null);
+                                        setOrderToCancel(order);
+                                      }}
+                                      className="w-full px-3 py-1.5 text-left text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl flex items-center gap-2 cursor-pointer"
+                                    >
+                                      <Ban className="w-3.5 h-3.5 text-rose-500" />
+                                      <span>Cancel Order</span>
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -706,17 +904,29 @@ export const StockOrdersManager: React.FC = () => {
 
               <div className="flex items-center gap-2">
                 {(inspectOrder.status === 'ordered' || inspectOrder.status === 'in_transit') && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const target = inspectOrder;
-                      setInspectOrder(null);
-                      setReceivingOrder(target);
-                    }}
-                    className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs transition-colors cursor-pointer"
-                  >
-                    Receive Delivery
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setOrderToCancel(inspectOrder)}
+                      className="px-4 py-2 rounded-xl bg-white hover:bg-rose-50 text-rose-600 hover:text-rose-700 border border-rose-200 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                      title="Cancel this restock purchase order"
+                    >
+                      <Ban className="w-3.5 h-3.5 text-rose-500" />
+                      <span>Cancel Order</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = inspectOrder;
+                        setInspectOrder(null);
+                        setReceivingOrder(target);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs transition-colors cursor-pointer"
+                    >
+                      Receive Delivery
+                    </button>
+                  </>
                 )}
 
                 <button
@@ -753,6 +963,53 @@ export const StockOrdersManager: React.FC = () => {
           setTimeout(() => setActionNotice(null), 4000);
         }}
       />
+
+      {/* Cancel Order Safety Confirmation Modal */}
+      {orderToCancel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-xs animate-fade-in">
+          <div 
+            className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 border border-[#D2DFE2] shadow-warm-2xl space-y-6 animate-scale-in text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-14 h-14 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto shadow-xs">
+              <AlertTriangle className="w-7 h-7" />
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="font-serif text-xl sm:text-2xl font-bold text-[#10222B]">
+                Cancel Purchase Order?
+              </h3>
+              <p className="text-xs text-stone-600 leading-relaxed">
+                Are you sure you want to cancel order <strong className="font-mono text-[#10222B]">#{orderToCancel.orderNumber}</strong> from <strong className="text-[#10222B]">{orderToCancel.supplierName}</strong>?
+              </p>
+              <p className="text-[11px] text-stone-500 bg-stone-50 p-3 rounded-xl border border-stone-200 text-left">
+                • Status will change to <span className="font-bold text-rose-700">Cancelled</span>.<br />
+                • In-transit incoming quantity ({orderToCancel.items.reduce((s, i) => s + i.quantityOrdered, 0)} units) will be removed.<br />
+                • Physical inventory will remain unaffected.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setOrderToCancel(null)}
+                className="px-4 py-2.5 rounded-xl bg-[#F2F6F7] hover:bg-[#E5ECEE] text-[#10222B] font-semibold text-xs border border-[#D2DFE2] transition-colors cursor-pointer"
+              >
+                Keep Order
+              </button>
+
+              <button
+                type="button"
+                disabled={isSyncing}
+                onClick={handleCancelConfirm}
+                className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-sm active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+              >
+                Yes, Cancel Order
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
