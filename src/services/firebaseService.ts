@@ -550,6 +550,20 @@ export const restockAllInventory = async (quantityMap: Record<string, number>): 
   }
 };
 
+export const batchSaveInventoryItems = async (items: InventoryItem[]): Promise<void> => {
+  try {
+    const batch = writeBatch(db);
+    items.forEach(item => {
+      const itemRef = doc(db, INVENTORY_COLLECTION, item.id);
+      batch.set(itemRef, item, { merge: true });
+    });
+    await batch.commit();
+  } catch (error) {
+    console.error('Error batch saving inventory items in Firestore:', error);
+    throw error;
+  }
+};
+
 // --- RESTOCK & PURCHASE ORDER OPERATIONS ---
 
 export const fetchRestockOrders = async (): Promise<RestockOrder[]> => {

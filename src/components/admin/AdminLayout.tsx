@@ -26,7 +26,8 @@ import {
   Clock,
   Sparkles,
   ExternalLink,
-  ChevronLeft
+  ChevronLeft,
+  FileSpreadsheet
 } from 'lucide-react';
 import { exportInventoryToCSV } from '../../utils/exportCsv';
 
@@ -34,6 +35,7 @@ interface AdminLayoutProps {
   children: React.ReactNode;
   activeTab: 'counter' | 'orders' | 'inventory' | 'restock' | 'menu' | 'reservations' | 'staff' | 'promotions';
   onAddNewItem?: () => void;
+  onImportExcel?: () => void;
 }
 
 interface NavItem {
@@ -51,7 +53,7 @@ interface NavSection {
   items: NavItem[];
 }
 
-export const AdminLayout: React.FC<AdminLayoutProps> = ({ children, activeTab, onAddNewItem }) => {
+export const AdminLayout: React.FC<AdminLayoutProps> = ({ children, activeTab, onAddNewItem, onImportExcel }) => {
   const { user, isAdmin, logout } = useAuth();
   const { inventory, stats, isSyncing } = useInventory();
   const location = useLocation();
@@ -413,6 +415,18 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children, activeTab, o
                 <Download className="w-3.5 h-3.5 text-[#1B8585]" />
                 <span>Export CSV</span>
               </button>
+
+              {/* Import Excel CTA (if provided by page) */}
+              {onImportExcel && (
+                <button
+                  onClick={onImportExcel}
+                  className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#F2F6F7] hover:bg-[#E5ECEE] text-xs font-bold text-[#10222B] border border-[#D2DFE2] transition-colors cursor-pointer"
+                  title="Bulk import products from Excel (.xlsx, .xls) or CSV"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-[#1B8585]" />
+                  <span>Import Excel</span>
+                </button>
+              )}
 
               {/* Add Product CTA (if provided by page) */}
               {onAddNewItem && (

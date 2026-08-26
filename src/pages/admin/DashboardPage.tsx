@@ -3,6 +3,7 @@ import { AdminLayout } from '../../components/admin/AdminLayout';
 import { KpiMetrics } from '../../components/admin/KpiMetrics';
 import { InventoryTable } from '../../components/admin/InventoryTable';
 import { ItemModal } from '../../components/admin/ItemModal';
+import { ExcelImportModal } from '../../components/admin/ExcelImportModal';
 import { useInventory } from '../../context/InventoryContext';
 import { InventoryItem, StockFilter } from '../../types';
 
@@ -11,6 +12,7 @@ export const DashboardPage: React.FC = () => {
   const [filter, setFilter] = useState<StockFilter>('all');
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
 
   const handleEditItem = (item: InventoryItem) => {
     setEditingItem(item);
@@ -23,7 +25,11 @@ export const DashboardPage: React.FC = () => {
   };
 
   return (
-    <AdminLayout activeTab="inventory" onAddNewItem={handleAddNewItem}>
+    <AdminLayout 
+      activeTab="inventory" 
+      onAddNewItem={handleAddNewItem}
+      onImportExcel={() => setIsExcelModalOpen(true)}
+    >
       <div className="space-y-6">
         
         {/* KPI Overview Cards */}
@@ -42,6 +48,12 @@ export const DashboardPage: React.FC = () => {
           item={editingItem}
           onClose={() => setIsModalOpen(false)}
           onSave={saveItem}
+        />
+
+        {/* Excel / CSV Spreadsheet Import Modal */}
+        <ExcelImportModal
+          isOpen={isExcelModalOpen}
+          onClose={() => setIsExcelModalOpen(false)}
         />
 
       </div>

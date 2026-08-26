@@ -82,6 +82,7 @@ interface InventoryContextType {
   seedFirebaseDatabase: () => Promise<{ success: boolean; count: number }>;
   resetToFactoryDefaults: () => void;
   refreshInventory: () => Promise<void>;
+  bulkImportItems: (items: InventoryItem[]) => Promise<number>;
 }
 
 const InventoryContext = createContext<InventoryContextType | undefined>(undefined);
@@ -676,6 +677,29 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
+  const bulkImportItems = async (newItems: InventoryItem[]): Promise<number> => {
+    setIsSyncing(true);
+    try {
+      // 1. Optimistic state merge with current inventory
+      const existingMap = new Map(inventory.map(i => [i.id, i]));
+      newItems.forEach(item => {
+        existingMap.set(item.id, item);
+      });
+      const updatedList = Array.from(existingMap.values());
+      setInventory(updatedList);
+      mockStorage.saveInventory(updatedList);
+
+      // 2. Batch sync directly to Firestore database
+      await firebaseService.batchSaveInventoryItems(newItems);
+      return newItems.length;
+    } catch (err) {
+      console.warn('Batch import saved locally, firestore sync note:', err);
+      return newItems.length;
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const resetToFactoryDefaults = () => {
     mockStorage.resetToDefaults();
     setInventory(mockStorage.getInventory());
@@ -713,6 +737,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         seedFirebaseDatabase,
         resetToFactoryDefaults,
         refreshInventory,
+        bulkImportItems,
       }}
     >
       {children}

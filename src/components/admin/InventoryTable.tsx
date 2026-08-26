@@ -8,6 +8,7 @@ import { ReceiveDeliveryModal } from './ReceiveDeliveryModal';
 import { StockHistoryDrawer } from './StockHistoryDrawer';
 import { SupplierOrderModal } from './SupplierOrderModal';
 import { BarcodeScannerModal } from './BarcodeScannerModal';
+import { ExcelImportModal } from './ExcelImportModal';
 import { formatCurrency } from '../../utils/currency';
 import { CustomSelect } from '../common/CustomSelect';
 import { 
@@ -23,6 +24,7 @@ import {
   History,
   ScanLine,
   FileText,
+  FileSpreadsheet,
   Barcode,
   ArrowUp,
   ArrowDown,
@@ -81,6 +83,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   const [receivingOrder, setReceivingOrder] = useState<RestockOrder | null>(null);
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
   const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
+  const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
   const [historyTargetItem, setHistoryTargetItem] = useState<InventoryItem | null>(null);
   const [tableNotice, setTableNotice] = useState<string | null>(null);
 
@@ -238,6 +241,18 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
             >
               <Truck className="w-3.5 h-3.5 text-[#1B8585]" />
               <span>+ Place Restock Order</span>
+            </button>
+
+            {/* Import Excel / CSV Button */}
+            <button
+              type="button"
+              disabled={isSyncing}
+              onClick={() => setIsExcelModalOpen(true)}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#F2F6F7] hover:bg-[#E5ECEE] text-[#10222B] text-xs font-bold transition-all border border-[#D2DFE2] active:scale-95 disabled:opacity-50 cursor-pointer"
+              title="Bulk import products from Excel (.xlsx, .xls) or CSV spreadsheet"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-[#1B8585]" />
+              <span>Import Excel</span>
             </button>
 
             {/* Add New Product CTA */}
@@ -565,6 +580,12 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
           setIsScannerModalOpen(false);
           setHistoryTargetItem(item);
         }}
+      />
+
+      {/* Excel / CSV Spreadsheet Bulk Import Modal */}
+      <ExcelImportModal
+        isOpen={isExcelModalOpen}
+        onClose={() => setIsExcelModalOpen(false)}
       />
 
     </div>
