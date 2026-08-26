@@ -17,15 +17,15 @@ export const SPREADSHEET_COLUMNS_SPEC: ColumnSpec[] = [
     key: 'name',
     required: true,
     type: 'Text',
-    description: 'Product or ingredient title',
+    description: 'Product or ingredient name',
     example: 'Ethiopian Yirgacheffe Whole Beans'
   },
   {
     name: 'Category',
     key: 'category',
     required: true,
-    type: 'Dropdown / Text',
-    description: 'Product classification category',
+    type: 'Text',
+    description: 'Raw Ingredients, Retail Coffee Beans, Dairy & Alt, Packaging, Bakery & Pantry',
     example: 'Retail Coffee Beans',
     allowedValues: ['Raw Ingredients', 'Retail Coffee Beans', 'Dairy & Alt', 'Packaging', 'Bakery & Pantry']
   },
@@ -34,7 +34,7 @@ export const SPREADSHEET_COLUMNS_SPEC: ColumnSpec[] = [
     key: 'quantity',
     required: true,
     type: 'Number',
-    description: 'Current physical on-hand stock count',
+    description: 'Current physical on-hand stock',
     example: '25'
   },
   {
@@ -42,7 +42,7 @@ export const SPREADSHEET_COLUMNS_SPEC: ColumnSpec[] = [
     key: 'unit',
     required: true,
     type: 'Text',
-    description: 'Unit of measure',
+    description: 'kg, g, L, ml, packs, units, boxes, bags',
     example: 'kg',
     allowedValues: ['kg', 'g', 'L', 'ml', 'packs', 'units', 'boxes', 'bags']
   },
@@ -51,7 +51,7 @@ export const SPREADSHEET_COLUMNS_SPEC: ColumnSpec[] = [
     key: 'minThreshold',
     required: true,
     type: 'Number',
-    description: 'Warning threshold for low stock alert',
+    description: 'Low stock warning alert level',
     example: '5'
   },
   {
@@ -59,80 +59,16 @@ export const SPREADSHEET_COLUMNS_SPEC: ColumnSpec[] = [
     key: 'unitCost',
     required: true,
     type: 'Number',
-    description: 'Supplier purchase cost per unit in ₹',
+    description: 'Purchase cost per unit in ₹',
     example: '850.00'
-  },
-  {
-    name: 'Selling Price (₹)',
-    key: 'price',
-    required: false,
-    type: 'Number',
-    description: 'Menu / retail sale price (defaults to cost * 1.4)',
-    example: '1200.00'
-  },
-  {
-    name: 'SKU',
-    key: 'sku',
-    required: false,
-    type: 'Text',
-    description: 'Unique Stock Keeping Unit (auto-generated if empty)',
-    example: 'SKU-COF-ETH-01'
   },
   {
     name: 'Supplier',
     key: 'supplier',
     required: false,
     type: 'Text',
-    description: 'Primary vendor or distributor company name',
+    description: 'Vendor or supplier name (Optional)',
     example: 'Direct Origin Importers Ltd'
-  },
-  {
-    name: 'Supplier Email',
-    key: 'supplierEmail',
-    required: false,
-    type: 'Email',
-    description: 'Direct procurement contact email',
-    example: 'orders@directorigin.com'
-  },
-  {
-    name: 'Supplier Phone',
-    key: 'supplierPhone',
-    required: false,
-    type: 'Text',
-    description: 'Supplier contact phone or WhatsApp',
-    example: '+91 98765 43210'
-  },
-  {
-    name: 'Location',
-    key: 'location',
-    required: false,
-    type: 'Text',
-    description: 'Storage area inside cafe or cold walk-in',
-    example: 'Dry Storage - Shelf A'
-  },
-  {
-    name: 'Barcode',
-    key: 'barcode',
-    required: false,
-    type: 'Text / Digits',
-    description: 'EAN-13, UPC, or custom barcode string',
-    example: '8901234567891'
-  },
-  {
-    name: 'Is Perishable',
-    key: 'isPerishable',
-    required: false,
-    type: 'YES / NO',
-    description: 'Whether the item has a fast expiration lifecycle',
-    example: 'NO'
-  },
-  {
-    name: 'Notes',
-    key: 'notes',
-    required: false,
-    type: 'Text',
-    description: 'Handling instructions, tasting notes, or origins',
-    example: 'High altitude washed arabica beans'
   }
 ];
 
@@ -144,15 +80,7 @@ export const SAMPLE_PRODUCTS_DATA = [
     'Unit': 'kg',
     'Min Threshold': 5,
     'Unit Cost (₹)': 850,
-    'Selling Price (₹)': 1200,
-    'SKU': 'SKU-COF-ETH-01',
-    'Supplier': 'Direct Origin Importers Ltd',
-    'Supplier Email': 'orders@directorigin.com',
-    'Supplier Phone': '+91 98765 43210',
-    'Location': 'Dry Storage - Shelf A',
-    'Barcode': '8901234567891',
-    'Is Perishable': 'NO',
-    'Notes': 'High altitude washed arabica beans'
+    'Supplier': 'Direct Origin Importers Ltd'
   },
   {
     'Name': 'Oat Milk Barista Edition (1L)',
@@ -161,15 +89,7 @@ export const SAMPLE_PRODUCTS_DATA = [
     'Unit': 'units',
     'Min Threshold': 12,
     'Unit Cost (₹)': 180,
-    'Selling Price (₹)': 260,
-    'SKU': 'SKU-MILK-OAT-01',
-    'Supplier': 'PureDairy Logistics',
-    'Supplier Email': 'sales@puredairy.com',
-    'Supplier Phone': '+91 98765 43211',
-    'Location': 'Cold Walk-in Refrigerator',
-    'Barcode': '8901234567892',
-    'Is Perishable': 'YES',
-    'Notes': 'Keep chilled below 4°C'
+    'Supplier': 'PureDairy Logistics'
   },
   {
     'Name': '100% Recyclable Hot Cups (12oz)',
@@ -178,15 +98,7 @@ export const SAMPLE_PRODUCTS_DATA = [
     'Unit': 'units',
     'Min Threshold': 150,
     'Unit Cost (₹)': 6.50,
-    'Selling Price (₹)': 10.00,
-    'SKU': 'SKU-PACK-CUP-12',
-    'Supplier': 'EcoPack Solutions',
-    'Supplier Email': 'orders@ecopack.com',
-    'Supplier Phone': '+91 98765 43212',
-    'Location': 'Packaging Rack #2',
-    'Barcode': '8901234567893',
-    'Is Perishable': 'NO',
-    'Notes': 'Double-walled kraft paper'
+    'Supplier': 'EcoPack Solutions'
   },
   {
     'Name': 'Madagascar Bourbon Vanilla Syrup',
@@ -195,15 +107,7 @@ export const SAMPLE_PRODUCTS_DATA = [
     'Unit': 'L',
     'Min Threshold': 2,
     'Unit Cost (₹)': 920,
-    'Selling Price (₹)': 1350,
-    'SKU': 'SKU-ING-VAN-01',
-    'Supplier': 'Direct Origin Importers Ltd',
-    'Supplier Email': 'orders@directorigin.com',
-    'Supplier Phone': '+91 98765 43210',
-    'Location': 'Syrup Storage Rack',
-    'Barcode': '8901234567894',
-    'Is Perishable': 'NO',
-    'Notes': 'Natural extract, no artificial preservatives'
+    'Supplier': 'Direct Origin Importers Ltd'
   },
   {
     'Name': 'Unsalted Artisan Butter (500g)',
@@ -212,41 +116,25 @@ export const SAMPLE_PRODUCTS_DATA = [
     'Unit': 'packs',
     'Min Threshold': 8,
     'Unit Cost (₹)': 240,
-    'Selling Price (₹)': 320,
-    'SKU': 'SKU-BAKE-BUT-01',
-    'Supplier': 'PureDairy Logistics',
-    'Supplier Email': 'sales@puredairy.com',
-    'Supplier Phone': '+91 98765 43211',
-    'Location': 'Cold Walk-in Refrigerator',
-    'Barcode': '8901234567895',
-    'Is Perishable': 'YES',
-    'Notes': 'For fresh croissants and artisan brioche'
+    'Supplier': 'PureDairy Logistics'
   }
 ];
 
 export const downloadSampleExcelTemplate = () => {
   const worksheet = XLSX.utils.json_to_sheet(SAMPLE_PRODUCTS_DATA);
   worksheet['!cols'] = [
-    { wch: 36 }, // Name
-    { wch: 22 }, // Category
-    { wch: 12 }, // Quantity
-    { wch: 10 }, // Unit
-    { wch: 15 }, // Min Threshold
+    { wch: 38 }, // Name
+    { wch: 24 }, // Category
+    { wch: 14 }, // Quantity
+    { wch: 12 }, // Unit
+    { wch: 16 }, // Min Threshold
     { wch: 16 }, // Unit Cost (₹)
-    { wch: 17 }, // Selling Price (₹)
-    { wch: 18 }, // SKU
-    { wch: 28 }, // Supplier
-    { wch: 26 }, // Supplier Email
-    { wch: 18 }, // Supplier Phone
-    { wch: 26 }, // Location
-    { wch: 18 }, // Barcode
-    { wch: 15 }, // Is Perishable
-    { wch: 38 }  // Notes
+    { wch: 30 }  // Supplier
   ];
 
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Products');
-  XLSX.writeFile(workbook, 'Aura_Cafe_Products_Import_Template.xlsx');
+  XLSX.writeFile(workbook, 'Aura_Cafe_Products_Template.xlsx');
 };
 
 export const downloadSampleCsvTemplate = () => {
@@ -256,7 +144,7 @@ export const downloadSampleCsvTemplate = () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'Aura_Cafe_Products_Import_Template.csv';
+  a.download = 'Aura_Cafe_Products_Template.csv';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -320,14 +208,15 @@ export const parseProductsSpreadsheet = async (
     throw new Error('Spreadsheet is empty. Please add product rows.');
   }
 
-  const existingSkus = new Set(existingInventory.map(i => i.sku.trim().toLowerCase()));
+  const existingNames = new Map(existingInventory.map(i => [i.name.trim().toLowerCase(), i]));
+  const existingSkus = new Map(existingInventory.map(i => [i.sku.trim().toLowerCase(), i]));
 
   const parsedResults: ParsedProductRow[] = rawRows.map((row, index) => {
-    const rowNumber = index + 2; // Accounting for 1-based index and header row
+    const rowNumber = index + 2; // 1-based index including header
     const errors: string[] = [];
     const warnings: string[] = [];
 
-    // Helper: case-insensitive key lookup
+    // Case-insensitive key lookup helper
     const getValue = (aliases: string[]): any => {
       for (const [key, val] of Object.entries(row)) {
         const cleanKey = key.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -341,14 +230,14 @@ export const parseProductsSpreadsheet = async (
       return '';
     };
 
-    // 1. Name
+    // 1. Name (Required)
     const nameVal = getValue(['name', 'product name', 'item name', 'title', 'product']);
     const name = String(nameVal || '').trim();
     if (!name) {
       errors.push('Product name is required.');
     }
 
-    // 2. Category
+    // 2. Category (Required)
     const catVal = getValue(['category', 'category name', 'type', 'group']);
     const rawCat = String(catVal || '').trim();
     let category: InventoryCategory = 'Raw Ingredients';
@@ -363,7 +252,7 @@ export const parseProductsSpreadsheet = async (
       warnings.push('Category missing. Defaulted to "Raw Ingredients".');
     }
 
-    // 3. Quantity
+    // 3. Quantity (Required)
     const qtyVal = getValue(['quantity', 'qty', 'stock', 'current stock', 'units on hand']);
     let quantity = Number(qtyVal);
     if (qtyVal === '' || isNaN(quantity)) {
@@ -373,7 +262,7 @@ export const parseProductsSpreadsheet = async (
       errors.push('Quantity cannot be negative.');
     }
 
-    // 4. Unit
+    // 4. Unit (Required)
     const unitVal = getValue(['unit', 'unit of measure', 'uom', 'measure']);
     let unit: InventoryUnit = 'units';
     const rawUnit = String(unitVal || '').trim().toLowerCase();
@@ -393,21 +282,19 @@ export const parseProductsSpreadsheet = async (
     } else if (rawUnit === 'bag') {
       unit = 'bags';
     } else if (rawUnit) {
-      warnings.push(`Unrecognized unit "${rawUnit}". Defaulted to "units".`);
       unit = 'units';
     }
 
-    // 5. Min Threshold
+    // 5. Min Threshold (Required)
     const threshVal = getValue(['min threshold', 'min stock', 'threshold', 'par level', 'reorder level']);
     let minThreshold = Number(threshVal);
     if (threshVal === '' || isNaN(minThreshold)) {
       minThreshold = 5;
-      warnings.push('Min Threshold missing. Defaulted to 5.');
     } else if (minThreshold < 0) {
       errors.push('Min threshold cannot be negative.');
     }
 
-    // 6. Unit Cost
+    // 6. Unit Cost (Required)
     const costVal = getValue(['unit cost', 'unit cost (₹)', 'cost', 'unit cost (rs)', 'purchase price', 'price cost']);
     let unitCost = Number(costVal);
     if (costVal === '' || isNaN(unitCost)) {
@@ -417,49 +304,39 @@ export const parseProductsSpreadsheet = async (
       errors.push('Unit Cost cannot be negative.');
     }
 
-    // 7. Selling Price
-    const priceVal = getValue(['selling price', 'selling price (₹)', 'price', 'sale price', 'retail price']);
-    let price = Number(priceVal);
-    if (priceVal === '' || isNaN(price) || price <= 0) {
-      price = Number((unitCost * 1.4).toFixed(2)) || unitCost || 50;
-    }
-
-    // 8. SKU
-    const skuVal = getValue(['sku', 'product sku', 'code', 'item code', 'barcode sku']);
-    let sku = String(skuVal || '').trim();
-    if (!sku) {
-      const prefix = category.substring(0, 3).toUpperCase();
-      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-      sku = `SKU-${prefix}-${randomSuffix}`;
-    }
-
-    const isExistingSku = existingSkus.has(sku.toLowerCase());
-    if (isExistingSku) {
-      warnings.push(`SKU "${sku}" already exists. Importing will update this existing item.`);
-    }
-
-    // 9. Supplier
+    // 7. Supplier (Optional)
     const supplierVal = getValue(['supplier', 'supplier name', 'vendor', 'distributor']);
     const supplier = String(supplierVal || 'Direct Origin Importers Ltd').trim();
 
-    // 10. Supplier Contact
-    const supplierEmail = String(getValue(['supplier email', 'vendor email', 'email']) || '').trim();
-    const supplierPhone = String(getValue(['supplier phone', 'vendor phone', 'phone', 'contact']) || '').trim();
+    // Auto-calculate selling price (Unit Cost * 1.4)
+    const price = Number((unitCost * 1.4).toFixed(2)) || unitCost || 50;
 
-    // 11. Location
-    const location = String(getValue(['location', 'storage location', 'storage', 'shelf', 'warehouse']) || 'Main Kitchen Storage').trim();
+    // Check if item already exists by Name or SKU
+    const existingByName = existingNames.get(name.toLowerCase());
+    const skuVal = getValue(['sku', 'product sku', 'code', 'item code']);
+    let sku = String(skuVal || '').trim();
+    
+    let matchedExisting: InventoryItem | undefined = existingByName;
+    if (sku) {
+      const existingBySku = existingSkus.get(sku.toLowerCase());
+      if (existingBySku) matchedExisting = existingBySku;
+    }
 
-    // 12. Barcode
-    const barcode = String(getValue(['barcode', 'upc', 'ean', 'barcode number']) || '').trim() || undefined;
+    if (!sku) {
+      if (matchedExisting) {
+        sku = matchedExisting.sku;
+      } else {
+        const prefix = category.substring(0, 3).toUpperCase();
+        const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+        sku = `SKU-${prefix}-${randomSuffix}`;
+      }
+    }
 
-    // 13. Is Perishable
-    const perishVal = String(getValue(['is perishable', 'perishable', 'isperishable']) || '').toLowerCase();
-    const isPerishable = perishVal === 'yes' || perishVal === 'true' || perishVal === '1' || perishVal === 'y';
+    const isExistingSku = Boolean(matchedExisting);
+    if (isExistingSku) {
+      warnings.push(`Existing item detected (${matchedExisting?.name}). Stock and cost will be updated.`);
+    }
 
-    // 14. Notes
-    const notes = String(getValue(['notes', 'description', 'remarks', 'comment']) || '').trim();
-
-    const matchedExisting = existingInventory.find(i => i.sku.toLowerCase() === sku.toLowerCase());
     const id = matchedExisting ? matchedExisting.id : `inv-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 7)}`;
     const imageUrl = matchedExisting?.imageUrl || DEFAULT_CATEGORY_IMAGES[category] || DEFAULT_CATEGORY_IMAGES['Raw Ingredients'];
 
@@ -475,14 +352,10 @@ export const parseProductsSpreadsheet = async (
       unitCost,
       price,
       supplier,
-      supplierPhone: supplierPhone || undefined,
-      supplierEmail: supplierEmail || undefined,
-      location,
+      location: matchedExisting?.location || 'Main Kitchen Storage',
       imageUrl,
       isArchived: false,
-      isPerishable,
-      notes: notes || undefined,
-      barcode,
+      isPerishable: category === 'Dairy & Alt' || category === 'Bakery & Pantry',
       updatedAt: Date.now()
     };
 

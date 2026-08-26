@@ -423,12 +423,10 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onCl
                             <th className="py-3 px-3">Status</th>
                             <th className="py-3 px-3.5">Product Name</th>
                             <th className="py-3 px-3">Category</th>
-                            <th className="py-3 px-3">SKU</th>
                             <th className="py-3 px-3">Stock & Unit</th>
-                            <th className="py-3 px-3">Unit Cost</th>
-                            <th className="py-3 px-3">Selling Price</th>
+                            <th className="py-3 px-3">Min Threshold</th>
+                            <th className="py-3 px-3">Unit Cost (₹)</th>
                             <th className="py-3 px-3.5">Supplier</th>
-                            <th className="py-3 px-3.5">Location</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[#D2DFE2]/70">
@@ -472,10 +470,10 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onCl
                                   ) : row.isExistingSku ? (
                                     <span 
                                       className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 font-bold text-[10px]"
-                                      title="SKU already exists. Stock count & cost will be updated."
+                                      title="Item exists. Stock count & cost will be updated."
                                     >
                                       <RefreshCw className="w-3 h-3 text-blue-600" />
-                                      <span>Update SKU</span>
+                                      <span>Update Item</span>
                                     </span>
                                   ) : hasWarnings ? (
                                     <span 
@@ -488,11 +486,11 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onCl
                                   ) : (
                                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold text-[10px]">
                                       <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                      <span>New SKU</span>
+                                      <span>New Product</span>
                                     </span>
                                   )}
                                 </td>
-                                <td className="py-2.5 px-3.5 font-medium text-[#10222B] max-w-[200px] truncate" title={row.item.name}>
+                                <td className="py-2.5 px-3.5 font-medium text-[#10222B] max-w-[220px] truncate" title={row.item.name}>
                                   {row.item.name || <span className="text-rose-500 italic">Missing Name</span>}
                                 </td>
                                 <td className="py-2.5 px-3 whitespace-nowrap">
@@ -500,23 +498,17 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onCl
                                     {row.item.category}
                                   </span>
                                 </td>
-                                <td className="py-2.5 px-3 font-mono text-[11px] text-stone-600 whitespace-nowrap">
-                                  {row.item.sku}
-                                </td>
                                 <td className="py-2.5 px-3 font-semibold text-[#10222B] whitespace-nowrap">
                                   {row.item.quantity} {row.item.unit}
+                                </td>
+                                <td className="py-2.5 px-3 font-medium text-stone-600 whitespace-nowrap">
+                                  {row.item.minThreshold} {row.item.unit}
                                 </td>
                                 <td className="py-2.5 px-3 font-semibold text-emerald-800 whitespace-nowrap">
                                   {formatCurrency(row.item.unitCost)}
                                 </td>
-                                <td className="py-2.5 px-3 font-medium text-stone-600 whitespace-nowrap">
-                                  {formatCurrency(row.item.price)}
-                                </td>
-                                <td className="py-2.5 px-3.5 text-stone-600 max-w-[160px] truncate" title={row.item.supplier}>
+                                <td className="py-2.5 px-3.5 text-stone-600 max-w-[180px] truncate" title={row.item.supplier}>
                                   {row.item.supplier}
-                                </td>
-                                <td className="py-2.5 px-3.5 text-stone-500 text-[11px] max-w-[140px] truncate" title={row.item.location}>
-                                  {row.item.location}
                                 </td>
                               </tr>
                             );
