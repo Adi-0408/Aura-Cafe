@@ -122,40 +122,34 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     localStorage.setItem('aura_stock_logs_v1', JSON.stringify(localStockLogs));
   }, [localStockLogs]);
 
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const fbItems = await firebaseService.fetchInventory();
-      if (fbItems && fbItems.length > 0) {
-        setInventory(fbItems);
-        mockStorage.saveInventory(fbItems);
-      } else {
-        const local = mockStorage.getInventory();
-        setInventory(local);
+  useEffect(() => {
+    // 1. Subscribe to real-time Cloud Firestore inventory sync
+    const unsubInv = firebaseService.subscribeToInventory((items) => {
+      if (items && items.length > 0) {
+        setInventory(items);
+        mockStorage.saveInventory(items);
       }
-
-      const fbOrders = await firebaseService.fetchRestockOrders();
-      if (fbOrders && fbOrders.length > 0) {
-        setRestockOrders(fbOrders);
-      }
-    } catch (err: any) {
-      console.warn('Using reactive local store for inventory:', err.message);
+      setLoading(false);
+    }, (err) => {
+      console.warn('Firestore realtime inventory fallback to local:', err);
       const local = mockStorage.getInventory();
       setInventory(local);
-    } finally {
       setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadData();
-
-    const unsubscribe = subscribeToKey('inventory', () => {
-      setInventory(mockStorage.getInventory());
     });
 
-    return () => unsubscribe();
+    // 2. Subscribe to real-time Cloud Firestore restock orders sync
+    const unsubOrders = firebaseService.subscribeToRestockOrders((orders) => {
+      if (orders && orders.length > 0) {
+        setRestockOrders(orders);
+      }
+    }, (err) => {
+      console.warn('Firestore realtime restock orders fallback:', err);
+    });
+
+    return () => {
+      unsubInv();
+      unsubOrders();
+    };
   }, []);
 
   const stats = useMemo<InventoryStats>(() => {
@@ -647,11 +641,30 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   };
 
+  const refreshInventory = async () => {
+    try {
+      setLoading(true);
+      const items = await firebaseService.fetchInventory();
+      if (items && items.length > 0) {
+        setInventory(items);
+        mockStorage.saveInventory(items);
+      }
+      const orders = await firebaseService.fetchRestockOrders();
+      if (orders && orders.length > 0) {
+        setRestockOrders(orders);
+      }
+    } catch (e) {
+      console.warn('Manual refresh inventory note:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const seedFirebaseDatabase = async () => {
     setIsSyncing(true);
     try {
       const res = await firebaseService.seedFirestore();
-      await loadData();
+      await refreshInventory();
       return res;
     } catch (err) {
       console.warn('Error seeding Firebase, reset local dataset instead:', err);
@@ -699,7 +712,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         getSupplierOrderSheets,
         seedFirebaseDatabase,
         resetToFactoryDefaults,
-        refreshInventory: loadData,
+        refreshInventory,
       }}
     >
       {children}

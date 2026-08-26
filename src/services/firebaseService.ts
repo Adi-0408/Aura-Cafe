@@ -8,7 +8,9 @@ import {
   deleteDoc,
   query,
   orderBy,
-  writeBatch
+  writeBatch,
+  onSnapshot,
+  Unsubscribe
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../config/firebaseConfig';
@@ -338,18 +340,53 @@ export const syncReservationToUser = async (reservation: Reservation): Promise<v
 
 // --- INVENTORY OPERATIONS ---
 
+export const seedInventoryToFirestore = async (): Promise<void> => {
+  try {
+    const batch = writeBatch(db);
+    INITIAL_INVENTORY.forEach(item => {
+      const itemRef = doc(db, INVENTORY_COLLECTION, item.id);
+      batch.set(itemRef, item, { merge: true });
+    });
+    await batch.commit();
+  } catch (e) {
+    console.warn('Could not auto-seed inventory to Firestore:', e);
+  }
+};
+
 export const fetchInventory = async (): Promise<InventoryItem[]> => {
   try {
     const q = query(collection(db, INVENTORY_COLLECTION), orderBy('name', 'asc'));
     const snapshot = await getDocs(q);
     if (snapshot.empty) {
-      return [];
+      await seedInventoryToFirestore();
+      return INITIAL_INVENTORY;
     }
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as InventoryItem));
   } catch (error) {
     console.error('Error fetching inventory from Firestore:', error);
-    throw error;
+    return INITIAL_INVENTORY;
   }
+};
+
+export const subscribeToInventory = (
+  onUpdate: (items: InventoryItem[]) => void,
+  onError?: (err: any) => void
+): Unsubscribe => {
+  const colRef = collection(db, INVENTORY_COLLECTION);
+  return onSnapshot(colRef, (snapshot) => {
+    if (snapshot.empty) {
+      seedInventoryToFirestore().catch(console.warn);
+      onUpdate(INITIAL_INVENTORY);
+    } else {
+      const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as InventoryItem));
+      // Sort alphabetically by name
+      items.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      onUpdate(items);
+    }
+  }, (error) => {
+    console.warn('Realtime inventory sync notice:', error);
+    if (onError) onError(error);
+  });
 };
 
 export const saveInventoryItem = async (item: InventoryItem): Promise<void> => {
@@ -529,6 +566,25 @@ export const fetchRestockOrders = async (): Promise<RestockOrder[]> => {
   }
 };
 
+export const subscribeToRestockOrders = (
+  onUpdate: (orders: RestockOrder[]) => void,
+  onError?: (err: any) => void
+): Unsubscribe => {
+  const colRef = collection(db, RESTOCK_ORDERS_COLLECTION);
+  const q = query(colRef, orderBy('orderedAt', 'desc'));
+  return onSnapshot(q, (snapshot) => {
+    if (snapshot.empty) {
+      onUpdate([]);
+    } else {
+      const orders = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as RestockOrder));
+      onUpdate(orders);
+    }
+  }, (error) => {
+    console.warn('Realtime restock orders sync notice:', error);
+    if (onError) onError(error);
+  });
+};
+
 export const saveRestockOrder = async (order: RestockOrder): Promise<void> => {
   try {
     const orderRef = doc(db, RESTOCK_ORDERS_COLLECTION, order.id);
@@ -561,18 +617,52 @@ export const deleteRestockOrder = async (orderId: string): Promise<void> => {
 
 // --- MENU OPERATIONS ---
 
+export const seedMenuToFirestore = async (): Promise<void> => {
+  try {
+    const batch = writeBatch(db);
+    INITIAL_MENU_ITEMS.forEach(item => {
+      const itemRef = doc(db, MENU_COLLECTION, item.id);
+      batch.set(itemRef, item, { merge: true });
+    });
+    await batch.commit();
+  } catch (e) {
+    console.warn('Could not auto-seed menu to Firestore:', e);
+  }
+};
+
 export const fetchMenuItems = async (): Promise<MenuItem[]> => {
   try {
     const q = query(collection(db, MENU_COLLECTION), orderBy('name', 'asc'));
     const snapshot = await getDocs(q);
     if (snapshot.empty) {
-      return [];
+      await seedMenuToFirestore();
+      return INITIAL_MENU_ITEMS;
     }
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MenuItem));
   } catch (error) {
     console.error('Error fetching menu items from Firestore:', error);
-    throw error;
+    return INITIAL_MENU_ITEMS;
   }
+};
+
+export const subscribeToMenuItems = (
+  onUpdate: (items: MenuItem[]) => void,
+  onError?: (err: any) => void
+): Unsubscribe => {
+  const colRef = collection(db, MENU_COLLECTION);
+  return onSnapshot(colRef, (snapshot) => {
+    if (snapshot.empty) {
+      seedMenuToFirestore().catch(console.warn);
+      onUpdate(INITIAL_MENU_ITEMS);
+    } else {
+      const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as MenuItem));
+      items.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      onUpdate(items);
+    }
+  }, (error) => {
+    console.warn('Realtime menu items sync notice:', error);
+    if (onError) onError(error);
+  });
 };
 
 export const saveMenuItem = async (item: MenuItem): Promise<void> => {
@@ -635,8 +725,27 @@ export const fetchReservations = async (): Promise<Reservation[]> => {
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reservation));
   } catch (error) {
     console.error('Error fetching reservations from Firestore:', error);
-    throw error;
+    return [];
   }
+};
+
+export const subscribeToReservations = (
+  onUpdate: (reservations: Reservation[]) => void,
+  onError?: (err: any) => void
+): Unsubscribe => {
+  const colRef = collection(db, RESERVATIONS_COLLECTION);
+  const q = query(colRef, orderBy('createdAt', 'desc'));
+  return onSnapshot(q, (snapshot) => {
+    if (snapshot.empty) {
+      onUpdate([]);
+    } else {
+      const res = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Reservation));
+      onUpdate(res);
+    }
+  }, (error) => {
+    console.warn('Realtime reservations sync notice:', error);
+    if (onError) onError(error);
+  });
 };
 
 export const createReservation = async (reservation: Reservation): Promise<void> => {
@@ -713,11 +822,25 @@ export const updateReservationStatus = async (
   }
 };
 
+export const seedTablesToFirestore = async (): Promise<void> => {
+  try {
+    const batch = writeBatch(db);
+    INITIAL_TABLES.forEach(table => {
+      const tableRef = doc(db, TABLES_COLLECTION, table.id);
+      batch.set(tableRef, table, { merge: true });
+    });
+    await batch.commit();
+  } catch (e) {
+    console.warn('Could not auto-seed tables to Firestore:', e);
+  }
+};
+
 export const fetchTables = async (): Promise<CafeTable[]> => {
   try {
     const q = query(collection(db, TABLES_COLLECTION));
     const snapshot = await getDocs(q);
     if (snapshot.empty) {
+      await seedTablesToFirestore();
       return INITIAL_TABLES;
     }
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeTable));
@@ -725,6 +848,27 @@ export const fetchTables = async (): Promise<CafeTable[]> => {
     console.warn('Using default tables:', error);
     return INITIAL_TABLES;
   }
+};
+
+export const subscribeToTables = (
+  onUpdate: (tables: CafeTable[]) => void,
+  onError?: (err: any) => void
+): Unsubscribe => {
+  const colRef = collection(db, TABLES_COLLECTION);
+  return onSnapshot(colRef, (snapshot) => {
+    if (snapshot.empty) {
+      seedTablesToFirestore().catch(console.warn);
+      onUpdate(INITIAL_TABLES);
+    } else {
+      const tables = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as CafeTable));
+      // Sort tables by name
+      tables.sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { numeric: true }));
+      onUpdate(tables);
+    }
+  }, (error) => {
+    console.warn('Realtime tables sync notice:', error);
+    if (onError) onError(error);
+  });
 };
 
 export const updateTableStatus = async (
@@ -851,6 +995,23 @@ export const fetchPromotionSettings = async (): Promise<PromotionSettings> => {
     console.warn('Could not fetch promotions settings from Firestore (using fallback):', error);
     return DEFAULT_PROMOTION_SETTINGS;
   }
+};
+
+export const subscribeToPromotionSettings = (
+  onUpdate: (settings: PromotionSettings) => void,
+  onError?: (err: any) => void
+): Unsubscribe => {
+  const docRef = doc(db, SETTINGS_COLLECTION, PROMOTIONS_DOC_ID);
+  return onSnapshot(docRef, (snapshot) => {
+    if (snapshot.exists()) {
+      onUpdate({ ...DEFAULT_PROMOTION_SETTINGS, ...snapshot.data() } as PromotionSettings);
+    } else {
+      onUpdate(DEFAULT_PROMOTION_SETTINGS);
+    }
+  }, (error) => {
+    console.warn('Realtime promotions sync notice:', error);
+    if (onError) onError(error);
+  });
 };
 
 export const savePromotionSettings = async (settings: PromotionSettings): Promise<void> => {

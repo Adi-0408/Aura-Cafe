@@ -30,31 +30,18 @@ export const MenuProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [selectedDietaryTags, setSelectedDietaryTags] = useState<DietaryTag[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  const loadMenu = async () => {
-    try {
-      setLoading(true);
-      const fbItems = await firebaseService.fetchMenuItems();
-      if (fbItems && fbItems.length > 0) {
-        setMenuItems(fbItems);
-        mockStorage.saveMenu(fbItems);
-      } else {
-        const local = mockStorage.getMenu();
-        setMenuItems(local);
+  useEffect(() => {
+    const unsubscribe = firebaseService.subscribeToMenuItems((items) => {
+      if (items && items.length > 0) {
+        setMenuItems(items);
+        mockStorage.saveMenu(items);
       }
-    } catch (err: any) {
-      console.warn('Using reactive local store for menu:', err.message);
+      setLoading(false);
+    }, (err) => {
+      console.warn('Firestore realtime menu fallback to local:', err);
       const local = mockStorage.getMenu();
       setMenuItems(local);
-    } finally {
       setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadMenu();
-
-    const unsubscribe = subscribeToKey('menu', () => {
-      setMenuItems(mockStorage.getMenu());
     });
 
     return () => unsubscribe();
@@ -126,6 +113,21 @@ export const MenuProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   }, [menuItems, selectedCategory, selectedDietaryTags, searchQuery]);
 
+  const refreshMenu = async () => {
+    try {
+      setLoading(true);
+      const items = await firebaseService.fetchMenuItems();
+      if (items && items.length > 0) {
+        setMenuItems(items);
+        mockStorage.saveMenu(items);
+      }
+    } catch (e) {
+      console.warn('Manual menu refresh note:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <MenuContext.Provider
       value={{
@@ -142,7 +144,7 @@ export const MenuProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSearchQuery,
         toggleAvailability,
         saveMenuItem,
-        refreshMenu: loadMenu,
+        refreshMenu,
       }}
     >
       {children}

@@ -5,7 +5,8 @@ import {
   DEFAULT_PROMOTION_SETTINGS, 
   fetchPromotionSettings, 
   savePromotionSettings, 
-  recordDiscountSavings 
+  recordDiscountSavings,
+  subscribeToPromotionSettings
 } from '../services/firebaseService';
 
 interface PromotionContextType {
@@ -45,18 +46,23 @@ export const PromotionProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     localStorage.setItem('aura_promotion_settings_v1', JSON.stringify(settings));
   }, [settings]);
 
-  // Load from Firestore
   const refreshSettings = async () => {
     try {
       const data = await fetchPromotionSettings();
       setSettings(data);
     } catch (e) {
-      console.warn('Using local promotion settings:', e);
+      console.warn('Manual promotion settings refresh note:', e);
     }
   };
 
   useEffect(() => {
-    refreshSettings();
+    const unsubscribe = subscribeToPromotionSettings((data) => {
+      setSettings(data);
+    }, (err) => {
+      console.warn('Firestore realtime promotion settings fallback:', err);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   // Compute Happy Hour Active state & countdown

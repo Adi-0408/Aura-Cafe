@@ -41,34 +41,26 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [loading, setLoading] = useState<boolean>(true);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      const [fbReservations, fbTables] = await Promise.all([
-        firebaseService.fetchReservations(),
-        firebaseService.fetchTables()
-      ]);
-      setReservations(fbReservations);
-      setTables(fbTables);
-      mockStorage.saveReservations(fbReservations);
-      mockStorage.saveTables(fbTables);
-    } catch (err: any) {
-      console.warn('Using reactive local store for reservations & tables:', err.message);
-      setReservations(mockStorage.getReservations());
-      setTables(mockStorage.getTables());
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    loadData();
-
-    const unsubRes = subscribeToKey('reservations', () => {
+    // 1. Realtime Firestore reservations subscription
+    const unsubRes = firebaseService.subscribeToReservations((res) => {
+      setReservations(res);
+      mockStorage.saveReservations(res);
+      setLoading(false);
+    }, (err) => {
+      console.warn('Firestore realtime reservations fallback:', err);
       setReservations(mockStorage.getReservations());
+      setLoading(false);
     });
 
-    const unsubTables = subscribeToKey('tables', () => {
+    // 2. Realtime Firestore tables subscription
+    const unsubTables = firebaseService.subscribeToTables((tbls) => {
+      if (tbls && tbls.length > 0) {
+        setTables(tbls);
+        mockStorage.saveTables(tbls);
+      }
+    }, (err) => {
+      console.warn('Firestore realtime tables fallback:', err);
       setTables(mockStorage.getTables());
     });
 
@@ -220,6 +212,22 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
   }, [reservations, tables]);
 
+  const refreshReservations = async () => {
+    try {
+      setLoading(true);
+      const [fbReservations, fbTables] = await Promise.all([
+        firebaseService.fetchReservations(),
+        firebaseService.fetchTables()
+      ]);
+      if (fbReservations) setReservations(fbReservations);
+      if (fbTables && fbTables.length > 0) setTables(fbTables);
+    } catch (e) {
+      console.warn('Manual reservations refresh note:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <ReservationContext.Provider
       value={{
@@ -233,7 +241,7 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
         releaseTable,
         deleteReservation,
         clearAllReservations,
-        refreshReservations: loadData,
+        refreshReservations,
         getBookedTableIds,
         isTableAvailable,
         stats,
