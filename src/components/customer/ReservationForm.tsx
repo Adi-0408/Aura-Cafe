@@ -103,44 +103,6 @@ export const ReservationForm: React.FC = () => {
     ? reservations.filter(r => r.email?.toLowerCase() === user.email?.toLowerCase())
     : [];
 
-  // If user is not logged in, show mandatory login barrier
-  if (!user) {
-    return (
-      <div className="bg-white rounded-3xl p-8 sm:p-12 border border-[#D2DFE2] shadow-warm-xl text-center space-y-6 max-w-xl mx-auto animate-fade-in">
-        <div className="w-16 h-16 rounded-2xl bg-[#EBF7F7] border border-[#A3DEDE] text-[#1B8585] flex items-center justify-center mx-auto shadow-sm">
-          <Lock className="w-8 h-8" />
-        </div>
-
-        <div className="space-y-2">
-          <span className="text-xs uppercase font-bold tracking-widest text-[#1B8585]">
-            Member Authentication Required
-          </span>
-          <h3 className="font-serif text-2xl sm:text-3xl font-bold text-[#10222B]">
-            Sign In to Reserve a Table
-          </h3>
-          <p className="text-stone-600 text-xs sm:text-sm leading-relaxed max-w-md mx-auto">
-            To guarantee live table availability, select specific tables on the floor plan, earn 10-token loyalty rewards, and receive instant confirmations, reservations are exclusively available to authenticated members.
-          </p>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-[#F2F6F7] border border-[#D2DFE2] text-xs text-stone-600 flex items-center justify-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-[#1B8585]" />
-          <span>Quick 1-click Google sign-in or member email login available.</span>
-        </div>
-
-        <div className="pt-2">
-          <Link
-            to="/login"
-            state={{ from: { pathname: '/reservations' } }}
-            className="w-full inline-flex items-center justify-center gap-2 py-3.5 px-6 rounded-2xl bg-[#10222B] hover:bg-[#1E3A47] text-[#F2F6F7] text-xs font-bold uppercase tracking-wider transition-all shadow-warm-md hover:shadow-warm-lg active:scale-98"
-          >
-            <span>Sign In to Continue Booking</span>
-            <ArrowRight className="w-4 h-4 text-[#77C7C6]" />
-          </Link>
-        </div>
-      </div>
-    );
-  }
 
   const handleNextStep = () => {
     setError(null);
@@ -396,10 +358,10 @@ export const ReservationForm: React.FC = () => {
   }
 
   return (
-    <div className="space-y-10 max-w-4xl mx-auto">
+    <div className="space-y-8 max-w-4xl mx-auto">
       
-      {/* Visual Token Stamp Card Showcase */}
-      <TokenStampCard compact={false} />
+      {/* Visual Token Stamp Card Showcase (For Logged-In Members) */}
+      {user && <TokenStampCard compact={false} />}
 
       {/* Main Reservation Wizard Card */}
       <div className="bg-white rounded-3xl p-6 sm:p-10 border border-[#D2DFE2] shadow-warm-lg space-y-8">
@@ -410,10 +372,21 @@ export const ReservationForm: React.FC = () => {
             <span className="text-xs font-bold uppercase tracking-widest text-[#1B8585]">
               Table & Tasting Reservations
             </span>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EBF7F7] text-[#146868] text-[11px] font-semibold border border-[#A3DEDE]">
-              <UserCheck className="w-3.5 h-3.5 text-[#1B8585]" />
-              <span>Logged in as <strong>{user.displayName || user.email}</strong></span>
-            </div>
+            {user ? (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EBF7F7] text-[#146868] text-[11px] font-semibold border border-[#A3DEDE]">
+                <UserCheck className="w-3.5 h-3.5 text-[#1B8585]" />
+                <span>Logged in as <strong>{user.displayName || user.email}</strong></span>
+              </div>
+            ) : (
+              <Link
+                to="/login"
+                state={{ from: { pathname: '/reservations' } }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-[#F2F6F7] hover:bg-[#E5ECEE] text-stone-600 hover:text-[#10222B] text-[11px] font-semibold border border-[#D2DFE2] transition-colors"
+              >
+                <span>Member Sign In (Optional)</span>
+                <ArrowRight className="w-3 h-3 text-[#1B8585]" />
+              </Link>
+            )}
           </div>
           <h2 className="font-serif text-2xl sm:text-3xl font-bold text-[#10222B]">
             Reserve Your Coastal Experience
