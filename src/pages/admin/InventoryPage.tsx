@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import { RestockAlertPanel } from '../../components/admin/RestockAlertPanel';
-import { RestockOrdersTracker } from '../../components/admin/RestockOrdersTracker';
 import { InventoryTable } from '../../components/admin/InventoryTable';
 import { ItemModal } from '../../components/admin/ItemModal';
 import { useInventory } from '../../context/InventoryContext';
@@ -26,11 +25,8 @@ export const InventoryPage: React.FC = () => {
     <AdminLayout activeTab="restock" onAddNewItem={handleAddNewItem}>
       <div className="space-y-6">
         
-        {/* Critical Depletion Panel */}
+        {/* Critical Depletion Requisition Panel */}
         <RestockAlertPanel />
-
-        {/* Live Purchase Orders & Delivery Pipeline Tracker */}
-        <RestockOrdersTracker />
 
         {/* Low Stock Filtered Table */}
         <InventoryTable

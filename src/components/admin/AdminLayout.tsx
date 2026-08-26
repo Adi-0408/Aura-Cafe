@@ -94,7 +94,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children, activeTab, o
         },
         {
           id: 'orders',
-          label: 'Stock & Goods Orders',
+          label: 'Goods & Deliveries',
           path: '/admin/orders',
           icon: <Truck className="w-4 h-4" />,
         },

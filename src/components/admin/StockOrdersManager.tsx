@@ -179,7 +179,7 @@ export const StockOrdersManager: React.FC = () => {
             <div>
               <div className="flex items-center gap-2.5">
                 <h2 className="font-serif text-2xl sm:text-3xl font-bold text-[#10222B]">
-                  Stock & Goods Purchase Orders
+                  Goods & Deliveries Orders
                 </h2>
                 <span className="px-3 py-1 rounded-full bg-[#EBF7F7] text-[#146868] text-xs font-bold border border-[#A3DEDE]">
                   {restockOrders.length} Total POs
