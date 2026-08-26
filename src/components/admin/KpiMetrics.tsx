@@ -6,11 +6,7 @@ import {
   Boxes, 
   DollarSign, 
   AlertTriangle, 
-  AlertOctagon, 
-  ArrowUpRight, 
-  TrendingUp, 
-  CheckCircle2,
-  ShieldAlert
+  ArrowUpRight 
 } from 'lucide-react';
 
 interface KpiMetricsProps {
@@ -69,24 +65,10 @@ export const KpiMetrics: React.FC<KpiMetricsProps> = ({ activeFilter, onSelectFi
       bgIcon: stats.lowStockCount > 0 ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-stone-100 text-stone-600 border border-stone-200',
       badge: stats.lowStockCount > 0 ? 'Needs Restock' : 'All Clear'
     },
-    {
-      id: 'out_of_stock' as StockFilter,
-      label: 'Critical Depletions',
-      value: stats.outOfStockCount,
-      subtext: '0 Units Available in Stock',
-      icon: <AlertOctagon className="w-5 h-5 text-rose-600" />,
-      accentColor: 'from-rose-500 to-rose-700',
-      colorClass: stats.outOfStockCount > 0 ? 'text-rose-900' : 'text-stone-700',
-      borderClass: activeFilter === 'out_of_stock' 
-        ? 'border-rose-500 ring-2 ring-rose-500/20 bg-gradient-to-b from-white to-rose-50/40 shadow-warm-md' 
-        : 'border-[#D2DFE2]/80 bg-white hover:border-rose-400 hover:shadow-warm-sm',
-      bgIcon: stats.outOfStockCount > 0 ? 'bg-rose-100 text-rose-800 border border-rose-300 animate-pulse' : 'bg-stone-100 text-stone-600 border border-stone-200',
-      badge: stats.outOfStockCount > 0 ? 'Urgent Order' : 'None'
-    },
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
       {cards.map((card) => {
         const isClickable = !card.noFilter;
         return (
