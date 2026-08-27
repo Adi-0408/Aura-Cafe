@@ -77,13 +77,15 @@ export const MenuProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const saveMenuItem = async (item: MenuItem) => {
     setIsSyncing(true);
-    mockStorage.saveMenuItem(item);
-    setMenuItems(mockStorage.getMenu());
-
     try {
       await firebaseService.saveMenuItem(item);
-    } catch (err) {
-      console.warn('Menu item saved locally:', err);
+      mockStorage.saveMenuItem(item);
+      setMenuItems(mockStorage.getMenu());
+    } catch (err: any) {
+      console.error('Error saving menu item to Firestore:', err);
+      mockStorage.saveMenuItem(item);
+      setMenuItems(mockStorage.getMenu());
+      throw err;
     } finally {
       setIsSyncing(false);
     }
@@ -92,17 +94,17 @@ export const MenuProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const bulkImportMenuItems = async (itemsToImport: MenuItem[]) => {
     setIsSyncing(true);
     try {
+      await firebaseService.batchSaveMenuItems(itemsToImport);
       const existingMap = new Map(menuItems.map(m => [m.id, m]));
       itemsToImport.forEach(item => {
         existingMap.set(item.id, item);
       });
       const merged = Array.from(existingMap.values());
-      
       setMenuItems(merged);
       mockStorage.saveMenu(merged);
-      await firebaseService.batchSaveMenuItems(itemsToImport);
     } catch (err) {
-      console.warn('Error bulk importing menu items:', err);
+      console.error('Error bulk importing menu items to Firestore:', err);
+      throw err;
     } finally {
       setIsSyncing(false);
     }
@@ -110,12 +112,15 @@ export const MenuProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const deleteMenuItem = async (id: string) => {
     setIsSyncing(true);
-    mockStorage.deleteMenuItem(id);
-    setMenuItems(mockStorage.getMenu());
     try {
       await firebaseService.deleteMenuItem(id);
+      mockStorage.deleteMenuItem(id);
+      setMenuItems(mockStorage.getMenu());
     } catch (err) {
-      console.warn('Menu item deleted locally:', err);
+      console.error('Error deleting menu item from Firestore:', err);
+      mockStorage.deleteMenuItem(id);
+      setMenuItems(mockStorage.getMenu());
+      throw err;
     } finally {
       setIsSyncing(false);
     }

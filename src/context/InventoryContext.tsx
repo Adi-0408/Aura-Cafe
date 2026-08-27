@@ -178,13 +178,15 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const saveItem = async (item: InventoryItem) => {
     setIsSyncing(true);
-    mockStorage.saveInventoryItem(item);
-    setInventory(mockStorage.getInventory());
-
     try {
       await firebaseService.saveInventoryItem(item);
-    } catch (err) {
-      console.warn('Saved to local storage, Firestore sync pending:', err);
+      mockStorage.saveInventoryItem(item);
+      setInventory(mockStorage.getInventory());
+    } catch (err: any) {
+      console.error('Error saving inventory item to Firestore:', err);
+      mockStorage.saveInventoryItem(item);
+      setInventory(mockStorage.getInventory());
+      throw err;
     } finally {
       setIsSyncing(false);
     }
@@ -291,13 +293,15 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const deleteItem = async (id: string) => {
     setIsSyncing(true);
-    mockStorage.deleteInventoryItem(id);
-    setInventory(mockStorage.getInventory());
-
     try {
       await firebaseService.deleteInventoryItem(id);
+      mockStorage.deleteInventoryItem(id);
+      setInventory(mockStorage.getInventory());
     } catch (err) {
-      console.warn('Deleted locally:', err);
+      console.error('Error deleting inventory item from Firestore:', err);
+      mockStorage.deleteInventoryItem(id);
+      setInventory(mockStorage.getInventory());
+      throw err;
     } finally {
       setIsSyncing(false);
     }
@@ -678,7 +682,10 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const bulkImportItems = async (newItems: InventoryItem[]): Promise<number> => {
     setIsSyncing(true);
     try {
-      // 1. Optimistic state merge with current inventory
+      // 1. Batch sync directly to Firestore database
+      await firebaseService.batchSaveInventoryItems(newItems);
+
+      // 2. Optimistic state merge with current inventory
       const existingMap = new Map(inventory.map(i => [i.id, i]));
       newItems.forEach(item => {
         existingMap.set(item.id, item);
@@ -687,12 +694,10 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setInventory(updatedList);
       mockStorage.saveInventory(updatedList);
 
-      // 2. Batch sync directly to Firestore database
-      await firebaseService.batchSaveInventoryItems(newItems);
       return newItems.length;
     } catch (err) {
-      console.warn('Batch import saved locally, firestore sync note:', err);
-      return newItems.length;
+      console.error('Batch import failed to sync to Firestore:', err);
+      throw err;
     } finally {
       setIsSyncing(false);
     }

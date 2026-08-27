@@ -41,6 +41,26 @@ const USERS_COLLECTION = 'users';
 const TABLES_COLLECTION = 'tables';
 const SALES_LEDGER_COLLECTION = 'sales_ledger';
 
+/**
+ * Strips all undefined fields recursively from objects/arrays so Firestore never throws unsupported field value errors.
+ */
+export const sanitizeForFirestore = <T extends Record<string, any>>(data: T): Record<string, any> => {
+  if (data === null || data === undefined) return {};
+  const clean: Record<string, any> = {};
+  for (const [key, val] of Object.entries(data)) {
+    if (val !== undefined) {
+      if (val !== null && typeof val === 'object' && !Array.isArray(val) && !(val instanceof Date)) {
+        clean[key] = sanitizeForFirestore(val);
+      } else if (Array.isArray(val)) {
+        clean[key] = val.map(item => (typeof item === 'object' && item !== null ? sanitizeForFirestore(item) : item));
+      } else {
+        clean[key] = val;
+      }
+    }
+  }
+  return clean;
+};
+
 // --- USER & CUSTOMER DATABASE OPERATIONS ---
 
 export const syncUserToFirestore = async (userProfile: UserProfile & { password?: string }): Promise<void> => {
@@ -393,8 +413,9 @@ export const subscribeToInventory = (
 
 export const saveInventoryItem = async (item: InventoryItem): Promise<void> => {
   try {
+    const cleanItem = sanitizeForFirestore(item);
     const itemRef = doc(db, INVENTORY_COLLECTION, item.id);
-    await setDoc(itemRef, item, { merge: true });
+    await setDoc(itemRef, cleanItem, { merge: true });
   } catch (error) {
     console.error('Error saving inventory item to Firestore:', error);
     throw error;
@@ -556,8 +577,9 @@ export const batchSaveInventoryItems = async (items: InventoryItem[]): Promise<v
   try {
     const batch = writeBatch(db);
     items.forEach(item => {
+      const cleanItem = sanitizeForFirestore(item);
       const itemRef = doc(db, INVENTORY_COLLECTION, item.id);
-      batch.set(itemRef, item, { merge: true });
+      batch.set(itemRef, cleanItem, { merge: true });
     });
     await batch.commit();
   } catch (error) {
@@ -603,8 +625,9 @@ export const subscribeToRestockOrders = (
 
 export const saveRestockOrder = async (order: RestockOrder): Promise<void> => {
   try {
+    const cleanOrder = sanitizeForFirestore(order);
     const orderRef = doc(db, RESTOCK_ORDERS_COLLECTION, order.id);
-    await setDoc(orderRef, order, { merge: true });
+    await setDoc(orderRef, cleanOrder, { merge: true });
   } catch (error) {
     console.error('Error saving restock order to Firestore:', error);
     throw error;
@@ -613,8 +636,9 @@ export const saveRestockOrder = async (order: RestockOrder): Promise<void> => {
 
 export const updateRestockOrder = async (orderId: string, updates: Partial<RestockOrder>): Promise<void> => {
   try {
+    const cleanUpdates = sanitizeForFirestore(updates);
     const orderRef = doc(db, RESTOCK_ORDERS_COLLECTION, orderId);
-    await updateDoc(orderRef, updates as any);
+    await updateDoc(orderRef, cleanUpdates);
   } catch (error) {
     console.error('Error updating restock order in Firestore:', error);
     throw error;
@@ -682,8 +706,9 @@ export const subscribeToMenuItems = (
 
 export const saveMenuItem = async (item: MenuItem): Promise<void> => {
   try {
+    const cleanItem = sanitizeForFirestore(item);
     const menuRef = doc(db, MENU_COLLECTION, item.id);
-    await setDoc(menuRef, item, { merge: true });
+    await setDoc(menuRef, cleanItem, { merge: true });
   } catch (error) {
     console.error('Error saving menu item to Firestore:', error);
     throw error;
@@ -694,8 +719,9 @@ export const batchSaveMenuItems = async (items: MenuItem[]): Promise<void> => {
   try {
     const batch = writeBatch(db);
     items.forEach(item => {
+      const cleanItem = sanitizeForFirestore(item);
       const ref = doc(db, MENU_COLLECTION, item.id);
-      batch.set(ref, item, { merge: true });
+      batch.set(ref, cleanItem, { merge: true });
     });
     await batch.commit();
   } catch (error) {
@@ -1135,8 +1161,9 @@ export const fetchSalesLedger = async (): Promise<LiveOrder[]> => {
 
 export const saveSalesOrder = async (order: LiveOrder): Promise<void> => {
   try {
+    const cleanOrder = sanitizeForFirestore(order);
     const orderRef = doc(db, SALES_LEDGER_COLLECTION, order.id);
-    await setDoc(orderRef, order, { merge: true });
+    await setDoc(orderRef, cleanOrder, { merge: true });
   } catch (error) {
     console.error('Error saving sales order to Firestore:', error);
     throw error;
@@ -1147,8 +1174,9 @@ export const batchSaveSalesOrders = async (orders: LiveOrder[]): Promise<void> =
   try {
     const batch = writeBatch(db);
     orders.forEach(order => {
+      const cleanOrder = sanitizeForFirestore(order);
       const orderRef = doc(db, SALES_LEDGER_COLLECTION, order.id);
-      batch.set(orderRef, order, { merge: true });
+      batch.set(orderRef, cleanOrder, { merge: true });
     });
     await batch.commit();
   } catch (error) {
@@ -1249,8 +1277,9 @@ export const subscribeToLiveOrders = (
 
 export const saveLiveOrder = async (order: LiveOrder): Promise<void> => {
   try {
+    const cleanOrder = sanitizeForFirestore(order);
     const orderRef = doc(db, LIVE_ORDERS_COLLECTION, order.id);
-    await setDoc(orderRef, order, { merge: true });
+    await setDoc(orderRef, cleanOrder, { merge: true });
   } catch (error) {
     console.error('Error saving live order to Firestore:', error);
     throw error;
@@ -1355,8 +1384,9 @@ export const fetchStaffMembers = async (): Promise<StaffMemberRecord[]> => {
 
 export const saveStaffMember = async (staff: StaffMemberRecord): Promise<void> => {
   try {
+    const cleanStaff = sanitizeForFirestore(staff);
     const ref = doc(db, STAFF_COLLECTION, staff.uid);
-    await setDoc(ref, staff, { merge: true });
+    await setDoc(ref, cleanStaff, { merge: true });
   } catch (error) {
     console.error('Error saving staff member to Firestore:', error);
     throw error;

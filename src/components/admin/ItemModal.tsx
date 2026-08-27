@@ -122,13 +122,13 @@ export const ItemModal: React.FC<ItemModalProps> = ({ isOpen, item, onClose, onS
         unitCost: Number(unitCost),
         price: Number(price),
         supplier: supplier.trim() || 'Verified Roastery Supplier',
-        supplierPhone: supplierPhone.trim() || undefined,
-        supplierEmail: supplierEmail.trim() || undefined,
+        supplierPhone: supplierPhone.trim() || '',
+        supplierEmail: supplierEmail.trim() || '',
         location: location.trim() || 'General Roastery Storage',
         imageUrl: imageUrl.trim() || DEFAULT_IMAGES[0],
         isArchived: item ? item.isArchived : false,
         updatedAt: Date.now(),
-        notes: notes.trim() || undefined
+        notes: notes.trim() || ''
       };
 
       await onSave(updatedItem);
