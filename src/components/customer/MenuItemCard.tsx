@@ -228,6 +228,21 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({ item }) => {
                 </div>
               )}
 
+              {item.recipe && item.recipe.length > 0 && (
+                <div className="p-4 rounded-2xl bg-white border border-[#D2DFE2] space-y-2">
+                  <span className="text-xs font-bold text-[#10222B] uppercase tracking-wider block">
+                    Fresh Craft Ingredients
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {item.recipe.map((r, idx) => (
+                      <span key={idx} className="text-xs px-3 py-1 rounded-xl bg-[#F2F6F7] text-[#10222B] font-medium border border-[#D2DFE2]">
+                        ✦ {r.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="pt-4 border-t border-[#D2DFE2] flex items-center justify-between">
                 <span className="text-xs text-stone-500">
                   Estimated prep time: <strong>{item.prepTime || '3-5 minutes'}</strong>

@@ -88,6 +88,13 @@ export type MenuCategory =
   | 'Artisan Bakery' 
   | 'All-Day Brunch';
 
+export interface RecipeIngredient {
+  inventoryItemId: string;
+  name: string;
+  quantityRequired: number;
+  unit: string;
+}
+
 export interface MenuItem {
   id: string;
   name: string;
@@ -104,6 +111,7 @@ export interface MenuItem {
   isPerishable?: boolean;
   archivedAt?: number | null;
   linkedInventoryId?: string;
+  recipe?: RecipeIngredient[];
 }
 
 export type SeatingArea = 

@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useMenu } from '../../context/MenuContext';
+import { useInventory } from '../../context/InventoryContext';
 import { MenuItem } from '../../types';
 import { formatCurrency } from '../../utils/currency';
 import { 
@@ -27,7 +28,8 @@ import {
   Info,
   UtensilsCrossed,
   Clock,
-  Layers
+  Layers,
+  Package
 } from 'lucide-react';
 
 interface MenuExcelImportModalProps {
@@ -37,6 +39,7 @@ interface MenuExcelImportModalProps {
 
 export const MenuExcelImportModal: React.FC<MenuExcelImportModalProps> = ({ isOpen, onClose }) => {
   const { menuItems, bulkImportMenuItems, isSyncing } = useMenu();
+  const { inventory } = useInventory();
   
   const [activeTab, setActiveTab] = useState<'upload' | 'format'>('upload');
   const [file, setFile] = useState<File | null>(null);
@@ -58,7 +61,7 @@ export const MenuExcelImportModal: React.FC<MenuExcelImportModalProps> = ({ isOp
     setIsParsing(true);
 
     try {
-      const results = await parseMenuItemsSpreadsheet(selectedFile, menuItems);
+      const results = await parseMenuItemsSpreadsheet(selectedFile, menuItems, inventory);
       setParsedRows(results);
       
       const validIndices = new Set<number>();
@@ -436,6 +439,15 @@ export const MenuExcelImportModal: React.FC<MenuExcelImportModalProps> = ({ isOp
                                       <p className="text-[10px] text-stone-500 font-normal line-clamp-1 max-w-xs">
                                         {row.item.description}
                                       </p>
+                                    )}
+                                    {row.item.recipe && row.item.recipe.length > 0 && (
+                                      <div className="flex flex-wrap gap-1 mt-1">
+                                        {row.item.recipe.map((r, rIdx) => (
+                                          <span key={rIdx} className="px-1.5 py-0.5 rounded bg-stone-100 border border-stone-200 text-[9px] font-medium text-stone-700">
+                                            📦 {r.name}: {r.quantityRequired} {r.unit}
+                                          </span>
+                                        ))}
+                                      </div>
                                     )}
                                   </div>
                                 </td>

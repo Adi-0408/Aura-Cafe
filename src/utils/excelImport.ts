@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { InventoryItem, InventoryCategory, InventoryUnit, MenuItem, MenuCategory, DietaryTag } from '../types';
+import { InventoryItem, InventoryCategory, InventoryUnit, MenuItem, MenuCategory, DietaryTag, RecipeIngredient } from '../types';
 
 export interface ColumnSpec {
   name: string;
@@ -208,6 +208,14 @@ export const MENU_COLUMNS_SPEC: ColumnSpec[] = [
     example: 'VG, GF'
   },
   {
+    name: 'Required Ingredients',
+    key: 'recipe',
+    required: false,
+    type: 'Text',
+    description: 'Format: "ItemName:Qty, ItemName:Qty" (e.g. "Coffee Beans:0.02, Oat Milk:0.25, 12oz Cup:1")',
+    example: 'Ethiopian Yirgacheffe Beans:0.02, Califia Farms Oat Milk:0.2, Eco Craft Paper Cup 12oz:1'
+  },
+  {
     name: 'Available',
     key: 'isAvailable',
     required: false,
@@ -225,6 +233,7 @@ export const SAMPLE_MENU_DATA = [
     'Description': 'Single-origin floral and citrus microlot brewed on Hario V60.',
     'Prep Time': '4-5 mins',
     'Dietary Tags': 'VG, GF, DF',
+    'Required Ingredients': 'Ethiopian Yirgacheffe Beans:0.02, Eco Craft Paper Cup 12oz:1',
     'Available': 'TRUE'
   },
   {
@@ -234,6 +243,7 @@ export const SAMPLE_MENU_DATA = [
     'Description': 'Double ristretto extracted over organic Valencia orange zest with silky milk.',
     'Prep Time': '3-4 mins',
     'Dietary Tags': 'GF, V',
+    'Required Ingredients': 'Ethiopian Yirgacheffe Beans:0.02, Califia Farms Barista Blend Oat Milk:0.15, Eco Craft Paper Cup 12oz:1',
     'Available': 'TRUE'
   },
   {
@@ -243,6 +253,7 @@ export const SAMPLE_MENU_DATA = [
     'Description': 'Slow gravity-extracted drop-by-drop cold brew with zero bitterness.',
     'Prep Time': 'Instant',
     'Dietary Tags': 'VG, GF, DF',
+    'Required Ingredients': 'Ethiopian Yirgacheffe Beans:0.035, Eco Craft Paper Cup 12oz:1',
     'Available': 'TRUE'
   },
   {
@@ -252,6 +263,7 @@ export const SAMPLE_MENU_DATA = [
     'Description': 'First-harvest Japanese tencha whisked with Califia oat milk and vanilla.',
     'Prep Time': '3-4 mins',
     'Dietary Tags': 'VG, GF, DF',
+    'Required Ingredients': 'Califia Farms Barista Blend Oat Milk:0.25, Eco Craft Paper Cup 12oz:1',
     'Available': 'TRUE'
   },
   {
@@ -261,6 +273,7 @@ export const SAMPLE_MENU_DATA = [
     'Description': '72-hour fermented sourdough croissant with 27 delicate honeycomb layers.',
     'Prep Time': 'Warm on request',
     'Dietary Tags': 'V',
+    'Required Ingredients': 'French Cultured Butter (AOP):0.05',
     'Available': 'TRUE'
   },
   {
@@ -270,6 +283,7 @@ export const SAMPLE_MENU_DATA = [
     'Description': 'Hass avocado mash, heirloom cherry tomatoes, Aleppo chili on seeded loaf.',
     'Prep Time': '8-10 mins',
     'Dietary Tags': 'VG, DF',
+    'Required Ingredients': 'Artisan Sourdough Loaf:1',
     'Available': 'TRUE'
   }
 ];
@@ -283,6 +297,7 @@ export const downloadMenuItemsExcelTemplate = () => {
     { wch: 60 }, // Description
     { wch: 16 }, // Prep Time
     { wch: 18 }, // Dietary Tags
+    { wch: 45 }, // Required Ingredients
     { wch: 14 }  // Available
   ];
 
@@ -513,7 +528,8 @@ const DEFAULT_MENU_IMAGES: Record<MenuCategory, string> = {
 
 export const parseMenuItemsSpreadsheet = async (
   file: File,
-  existingMenu: MenuItem[]
+  existingMenu: MenuItem[],
+  inventory?: InventoryItem[]
 ): Promise<ParsedMenuItemRow[]> => {
   const arrayBuffer = await file.arrayBuffer();
   const workbook = XLSX.read(arrayBuffer, { type: 'array' });
@@ -553,6 +569,7 @@ export const parseMenuItemsSpreadsheet = async (
     const description = String(getVal(['description', 'desc', 'details', 'notes'])).trim();
     const prepTime = String(getVal(['prep time', 'prep_time', 'time', 'duration'])).trim() || '3-5 mins';
     const rawTags = String(getVal(['dietary tags', 'dietary', 'tags', 'diet'])).trim();
+    const rawRecipe = String(getVal(['required ingredients', 'ingredients', 'recipe', 'ingredient', 'raw ingredients'])).trim();
     const rawAvailable = String(getVal(['available', 'is available', 'isavailable', 'in stock'])).trim().toLowerCase();
 
     if (!name) errors.push('Name is required');
@@ -587,6 +604,42 @@ export const parseMenuItemsSpreadsheet = async (
       });
     }
 
+    // Parse recipe ingredients
+    const parsedRecipe: RecipeIngredient[] = [];
+    if (rawRecipe) {
+      const tokens = rawRecipe.split(/[,;]+/).map(t => t.trim()).filter(Boolean);
+      tokens.forEach(token => {
+        let ingName = token;
+        let reqQty = 1;
+
+        if (token.includes(':')) {
+          const s = token.split(':');
+          ingName = s[0].trim();
+          const q = parseFloat(s[1]);
+          if (!isNaN(q) && q > 0) reqQty = q;
+        } else if (token.includes('=')) {
+          const s = token.split('=');
+          ingName = s[0].trim();
+          const q = parseFloat(s[1]);
+          if (!isNaN(q) && q > 0) reqQty = q;
+        }
+
+        const matchedInv = inventory?.find(i => 
+          i.id.toLowerCase() === ingName.toLowerCase() ||
+          i.name.toLowerCase() === ingName.toLowerCase() ||
+          i.sku.toLowerCase() === ingName.toLowerCase() ||
+          i.name.toLowerCase().includes(ingName.toLowerCase())
+        );
+
+        parsedRecipe.push({
+          inventoryItemId: matchedInv ? matchedInv.id : `inv-${ingName.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+          name: matchedInv ? matchedInv.name : ingName,
+          quantityRequired: reqQty,
+          unit: matchedInv ? matchedInv.unit : 'units'
+        });
+      });
+    }
+
     const isAvailable = rawAvailable === '' || rawAvailable === 'true' || rawAvailable === 'yes' || rawAvailable === '1' || rawAvailable === 'y';
 
     const existing = existingMenu.find(m => m.name.toLowerCase() === name.toLowerCase());
@@ -605,7 +658,8 @@ export const parseMenuItemsSpreadsheet = async (
       imageUrl: existing?.imageUrl || DEFAULT_MENU_IMAGES[category],
       prepTime: prepTime || existing?.prepTime || '3-5 mins',
       tastingNotes: existing?.tastingNotes || ['Fresh Roast', 'Balanced Body'],
-      featured: existing?.featured || false
+      featured: existing?.featured || false,
+      recipe: parsedRecipe.length > 0 ? parsedRecipe : (existing?.recipe || [])
     };
 
     parsedRows.push({

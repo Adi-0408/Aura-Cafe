@@ -120,89 +120,141 @@ export const LiveStoreCounter: React.FC = () => {
 
   // Map menu item to stock deductions & calculate raw cost basis
   const calculateDeductionsForItems = (items: { item: MenuItem; qty: number; milk?: string }[]): StockDeduction[] => {
-    const deductions: StockDeduction[] = [];
+    const deductionsMap = new Map<string, StockDeduction>();
 
     items.forEach(({ item, qty, milk }) => {
-      if (item.category.includes('Coffee') || item.category.includes('Cold Brew')) {
-        const beanItem = inventory.find(i => 
-          i.category === 'Raw Ingredients' || i.category === 'Retail Coffee Beans'
-        ) || inventory[0];
+      // 1. If menu item has an explicit recipe configured, use it!
+      if (item.recipe && item.recipe.length > 0) {
+        item.recipe.forEach(rec => {
+          // Find matching inventory item by ID, or fallback by name/SKU
+          const invItem = inventory.find(i => 
+            i.id === rec.inventoryItemId || 
+            (rec.name && i.name.toLowerCase() === rec.name.toLowerCase()) ||
+            (rec.name && i.sku.toLowerCase() === rec.name.toLowerCase())
+          );
+          
+          const deductionQty = Number(((rec.quantityRequired || 1) * qty).toFixed(3));
+          const itemId = invItem ? invItem.id : rec.inventoryItemId;
+          const itemName = invItem ? invItem.name : rec.name;
+          const unit = invItem ? invItem.unit : (rec.unit || 'units');
+          const unitCost = invItem ? invItem.unitCost : 0;
 
-        if (beanItem) {
-          deductions.push({
-            itemId: beanItem.id,
-            itemName: beanItem.name,
-            amountDeducted: Number((0.018 * qty).toFixed(3)),
-            unit: beanItem.unit,
-            unitCost: beanItem.unitCost,
-          });
-        }
-
-        // Dairy/Milk deduction
-        if (milk && milk.includes('Oat')) {
-          const oatItem = inventory.find(i => i.name.toLowerCase().includes('oat'));
-          if (oatItem) {
-            deductions.push({
-              itemId: oatItem.id,
-              itemName: oatItem.name,
-              amountDeducted: Number((0.25 * qty).toFixed(2)),
-              unit: oatItem.unit,
-              unitCost: oatItem.unitCost,
+          if (deductionsMap.has(itemId)) {
+            const existing = deductionsMap.get(itemId)!;
+            existing.amountDeducted = Number((existing.amountDeducted + deductionQty).toFixed(3));
+          } else {
+            deductionsMap.set(itemId, {
+              itemId,
+              itemName,
+              amountDeducted: deductionQty,
+              unit,
+              unitCost
             });
           }
-        } else if (milk && milk.includes('Whole')) {
-          const wholeItem = inventory.find(i => i.name.toLowerCase().includes('dairy') || i.name.toLowerCase().includes('milk'));
-          if (wholeItem) {
-            deductions.push({
-              itemId: wholeItem.id,
-              itemName: wholeItem.name,
-              amountDeducted: Number((0.25 * qty).toFixed(2)),
-              unit: wholeItem.unit,
-              unitCost: wholeItem.unitCost,
-            });
-          }
-        }
-
-        // Packaging Cup deduction
-        const cupItem = inventory.find(i => i.category === 'Packaging');
-        if (cupItem) {
-          deductions.push({
-            itemId: cupItem.id,
-            itemName: cupItem.name,
-            amountDeducted: qty,
-            unit: cupItem.unit,
-            unitCost: cupItem.unitCost,
-          });
-        }
-      } else if (item.category.includes('Bakery')) {
-        const pastryItem = inventory.find(i => 
-          i.category === 'Bakery & Pantry' || i.name.toLowerCase().includes('croissant') || i.name.toLowerCase().includes('butter')
-        );
-        if (pastryItem) {
-          deductions.push({
-            itemId: pastryItem.id,
-            itemName: pastryItem.name,
-            amountDeducted: qty,
-            unit: pastryItem.unit,
-            unitCost: pastryItem.unitCost,
-          });
-        }
+        });
       } else {
-        // Brunch / Food
-        const pantryItem = inventory.find(i => i.category === 'Bakery & Pantry' || i.category === 'Raw Ingredients');
-        if (pantryItem) {
-          deductions.push({
-            itemId: pantryItem.id,
-            itemName: pantryItem.name,
-            amountDeducted: qty,
-            unit: pantryItem.unit,
-            unitCost: pantryItem.unitCost,
-          });
+        // Fallback default recipe heuristics if recipe was not explicitly set
+        if (item.category.includes('Coffee') || item.category.includes('Cold Brew')) {
+          const beanItem = inventory.find(i => 
+            i.category === 'Raw Ingredients' || i.category === 'Retail Coffee Beans' || i.name.toLowerCase().includes('bean')
+          ) || inventory[0];
+
+          if (beanItem) {
+            const deductionQty = Number((0.018 * qty).toFixed(3));
+            if (deductionsMap.has(beanItem.id)) {
+              const existing = deductionsMap.get(beanItem.id)!;
+              existing.amountDeducted = Number((existing.amountDeducted + deductionQty).toFixed(3));
+            } else {
+              deductionsMap.set(beanItem.id, {
+                itemId: beanItem.id,
+                itemName: beanItem.name,
+                amountDeducted: deductionQty,
+                unit: beanItem.unit,
+                unitCost: beanItem.unitCost,
+              });
+            }
+          }
+
+          // Packaging Cup deduction
+          const cupItem = inventory.find(i => i.category === 'Packaging' || i.name.toLowerCase().includes('cup'));
+          if (cupItem) {
+            if (deductionsMap.has(cupItem.id)) {
+              const existing = deductionsMap.get(cupItem.id)!;
+              existing.amountDeducted = Number((existing.amountDeducted + qty).toFixed(2));
+            } else {
+              deductionsMap.set(cupItem.id, {
+                itemId: cupItem.id,
+                itemName: cupItem.name,
+                amountDeducted: qty,
+                unit: cupItem.unit,
+                unitCost: cupItem.unitCost,
+              });
+            }
+          }
+        } else if (item.category.includes('Bakery')) {
+          const pastryItem = inventory.find(i => 
+            i.category === 'Bakery & Pantry' || i.name.toLowerCase().includes('butter') || i.name.toLowerCase().includes('flour') || i.name.toLowerCase().includes('croissant')
+          );
+          if (pastryItem) {
+            if (deductionsMap.has(pastryItem.id)) {
+              const existing = deductionsMap.get(pastryItem.id)!;
+              existing.amountDeducted = Number((existing.amountDeducted + qty).toFixed(2));
+            } else {
+              deductionsMap.set(pastryItem.id, {
+                itemId: pastryItem.id,
+                itemName: pastryItem.name,
+                amountDeducted: qty,
+                unit: pastryItem.unit,
+                unitCost: pastryItem.unitCost,
+              });
+            }
+          }
+        } else {
+          // Food / Brunch
+          const pantryItem = inventory.find(i => i.category === 'Bakery & Pantry' || i.category === 'Raw Ingredients');
+          if (pantryItem) {
+            if (deductionsMap.has(pantryItem.id)) {
+              const existing = deductionsMap.get(pantryItem.id)!;
+              existing.amountDeducted = Number((existing.amountDeducted + qty).toFixed(2));
+            } else {
+              deductionsMap.set(pantryItem.id, {
+                itemId: pantryItem.id,
+                itemName: pantryItem.name,
+                amountDeducted: qty,
+                unit: pantryItem.unit,
+                unitCost: pantryItem.unitCost,
+              });
+            }
+          }
+        }
+      }
+
+      // Add milk customization deduction if milk is specified and not already explicit
+      if (milk && milk !== 'None') {
+        const milkItem = inventory.find(i => 
+          milk.toLowerCase().includes('oat') ? (i.name.toLowerCase().includes('oat') || i.category === 'Dairy & Alt') :
+          milk.toLowerCase().includes('whole') ? (i.name.toLowerCase().includes('whole') || i.name.toLowerCase().includes('dairy') || i.name.toLowerCase().includes('milk')) :
+          i.category === 'Dairy & Alt'
+        );
+        if (milkItem) {
+          const milkQty = Number((0.25 * qty).toFixed(2));
+          if (deductionsMap.has(milkItem.id)) {
+            const existing = deductionsMap.get(milkItem.id)!;
+            existing.amountDeducted = Number((existing.amountDeducted + milkQty).toFixed(2));
+          } else {
+            deductionsMap.set(milkItem.id, {
+              itemId: milkItem.id,
+              itemName: milkItem.name,
+              amountDeducted: milkQty,
+              unit: milkItem.unit,
+              unitCost: milkItem.unitCost
+            });
+          }
         }
       }
     });
 
-    return deductions;
+    return Array.from(deductionsMap.values());
   };
 
   // Add Item to active ticket
@@ -277,8 +329,12 @@ export const LiveStoreCounter: React.FC = () => {
     for (const ded of deductions) {
       const currentItem = inventory.find(inv => inv.id === ded.itemId);
       if (currentItem) {
-        const nextQty = Math.max(0, Number((currentItem.quantity - ded.amountDeducted).toFixed(2)));
-        await updateStockQuantity(currentItem.id, nextQty);
+        const nextQty = Math.max(0, Number((currentItem.quantity - ded.amountDeducted).toFixed(3)));
+        await updateStockQuantity(currentItem.id, nextQty, {
+          previousQty: currentItem.quantity,
+          reason: 'Live Store Order',
+          notes: `Auto-depleted ${ded.amountDeducted} ${ded.unit} for Order #${orderNum} (${guestName})`
+        });
       }
     }
 
@@ -379,8 +435,12 @@ export const LiveStoreCounter: React.FC = () => {
     for (const ded of order.depletedIngredients) {
       const item = inventory.find(i => i.id === ded.itemId);
       if (item) {
-        const restoredQty = Number((item.quantity + ded.amountDeducted).toFixed(2));
-        await updateStockQuantity(item.id, restoredQty);
+        const restoredQty = Number((item.quantity + ded.amountDeducted).toFixed(3));
+        await updateStockQuantity(item.id, restoredQty, {
+          previousQty: item.quantity,
+          reason: 'Manual Edit',
+          notes: `Restored ${ded.amountDeducted} ${ded.unit} from cancelled Order #${order.orderNumber}`
+        });
       }
     }
 

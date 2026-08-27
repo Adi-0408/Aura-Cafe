@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useMenu } from '../../context/MenuContext';
-import { MenuItem, MenuCategory, DietaryTag } from '../../types';
+import { useInventory } from '../../context/InventoryContext';
+import { MenuItem, MenuCategory, DietaryTag, RecipeIngredient } from '../../types';
 import { DietaryBadge } from '../common/Badge';
 import { formatCurrency } from '../../utils/currency';
 import { MenuExcelImportModal } from './MenuExcelImportModal';
@@ -17,7 +18,10 @@ import {
   Download,
   Trash2,
   Coffee,
-  FileText
+  FileText,
+  Package,
+  Layers,
+  AlertCircle
 } from 'lucide-react';
 
 const CATEGORIES: MenuCategory[] = [
@@ -31,6 +35,7 @@ const DIETARY_OPTIONS: DietaryTag[] = ['VG', 'V', 'GF', 'DF', 'N'];
 
 export const MenuManager: React.FC = () => {
   const { menuItems, toggleAvailability, saveMenuItem, deleteMenuItem } = useMenu();
+  const { inventory } = useInventory();
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
@@ -45,6 +50,7 @@ export const MenuManager: React.FC = () => {
   const [prepTime, setPrepTime] = useState('3-5 mins');
   const [tastingNotesStr, setTastingNotesStr] = useState('');
   const [featured, setFeatured] = useState(false);
+  const [recipe, setRecipe] = useState<RecipeIngredient[]>([]);
 
   const openEditor = (item: MenuItem) => {
     setEditingItem(item);
@@ -57,6 +63,7 @@ export const MenuManager: React.FC = () => {
     setPrepTime(item.prepTime || '3-5 mins');
     setTastingNotesStr((item.tastingNotes || []).join(', '));
     setFeatured(!!item.featured);
+    setRecipe(item.recipe || []);
     setIsCreatingNew(false);
   };
 
@@ -71,7 +78,75 @@ export const MenuManager: React.FC = () => {
     setPrepTime('3-5 mins');
     setTastingNotesStr('Aromatic, Smooth, Sweet');
     setFeatured(false);
+    
+    // Auto-suggest default ingredients based on category
+    const activeInv = inventory.filter(i => !i.isArchived);
+    const defaultBean = activeInv.find(i => i.category === 'Raw Ingredients' || i.category === 'Retail Coffee Beans') || activeInv[0];
+    const defaultCup = activeInv.find(i => i.category === 'Packaging');
+    
+    const initialRecipe: RecipeIngredient[] = [];
+    if (defaultBean) {
+      initialRecipe.push({
+        inventoryItemId: defaultBean.id,
+        name: defaultBean.name,
+        quantityRequired: defaultBean.unit === 'kg' ? 0.02 : 20,
+        unit: defaultBean.unit
+      });
+    }
+    if (defaultCup) {
+      initialRecipe.push({
+        inventoryItemId: defaultCup.id,
+        name: defaultCup.name,
+        quantityRequired: 1,
+        unit: defaultCup.unit
+      });
+    }
+    
+    setRecipe(initialRecipe);
     setIsCreatingNew(true);
+  };
+
+  const handleAddRecipeIngredient = () => {
+    const activeInv = inventory.filter(i => !i.isArchived);
+    const defaultItem = activeInv[0];
+    setRecipe(prev => [
+      ...prev,
+      {
+        inventoryItemId: defaultItem?.id || '',
+        name: defaultItem?.name || '',
+        quantityRequired: defaultItem?.unit === 'kg' || defaultItem?.unit === 'L' ? 0.02 : 1,
+        unit: defaultItem?.unit || 'units'
+      }
+    ]);
+  };
+
+  const handleIngredientItemChange = (index: number, itemId: string) => {
+    const target = inventory.find(i => i.id === itemId);
+    setRecipe(prev => prev.map((ing, idx) => {
+      if (idx === index) {
+        return {
+          ...ing,
+          inventoryItemId: itemId,
+          name: target?.name || ing.name,
+          unit: target?.unit || ing.unit,
+          quantityRequired: ing.quantityRequired || (target?.unit === 'kg' || target?.unit === 'L' ? 0.02 : 1)
+        };
+      }
+      return ing;
+    }));
+  };
+
+  const handleIngredientQtyChange = (index: number, qty: number) => {
+    setRecipe(prev => prev.map((ing, idx) => {
+      if (idx === index) {
+        return { ...ing, quantityRequired: Math.max(0, qty) };
+      }
+      return ing;
+    }));
+  };
+
+  const handleRemoveRecipeIngredient = (index: number) => {
+    setRecipe(prev => prev.filter((_, idx) => idx !== index));
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -82,6 +157,18 @@ export const MenuManager: React.FC = () => {
       .split(',')
       .map(s => s.trim())
       .filter(Boolean);
+
+    const validRecipe = recipe
+      .filter(r => r.inventoryItemId && r.quantityRequired > 0)
+      .map(r => {
+        const inv = inventory.find(i => i.id === r.inventoryItemId);
+        return {
+          inventoryItemId: r.inventoryItemId,
+          name: inv?.name || r.name,
+          quantityRequired: Number(r.quantityRequired),
+          unit: inv?.unit || r.unit
+        };
+      });
 
     const itemToSave: MenuItem = {
       id: editingItem ? editingItem.id : `menu-${Date.now().toString(36)}`,
@@ -95,6 +182,7 @@ export const MenuManager: React.FC = () => {
       prepTime,
       tastingNotes: notesArray,
       featured,
+      recipe: validRecipe
     };
 
     await saveMenuItem(itemToSave);
@@ -252,6 +340,21 @@ export const MenuManager: React.FC = () => {
                       <DietaryBadge key={tag} tag={tag} size="sm" />
                     ))}
                   </div>
+
+                  {item.recipe && item.recipe.length > 0 && (
+                    <div className="pt-2 border-t border-[#D2DFE2]/50 space-y-1">
+                      <span className="text-[10px] font-bold uppercase text-stone-400 block">
+                        Recipe Ingredients ({item.recipe.length}):
+                      </span>
+                      <div className="flex flex-wrap gap-1">
+                        {item.recipe.map((r, idx) => (
+                          <span key={idx} className="px-2 py-0.5 rounded-md bg-[#F2F6F7] border border-[#D2DFE2] text-[10px] font-medium text-stone-700">
+                            {r.name || r.inventoryItemId}: <strong className="text-[#10222B]">{r.quantityRequired} {r.unit}</strong>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -388,6 +491,120 @@ export const MenuManager: React.FC = () => {
                     );
                   })}
                 </div>
+              </div>
+
+              {/* Recipe & Required Raw Ingredients for Stock Depletion */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-white border border-[#D2DFE2] shadow-2xs space-y-3">
+                <div className="flex items-start sm:items-center justify-between gap-3 flex-col sm:flex-row">
+                  <div>
+                    <label className="text-xs font-bold text-[#10222B] flex items-center gap-1.5">
+                      <Package className="w-4 h-4 text-[#1B8585]" />
+                      Recipe & Required Ingredients (Auto-Deplete on Sale)
+                    </label>
+                    <p className="text-[11px] text-stone-500 mt-0.5">
+                      Specify the exact raw ingredients deducted from inventory whenever 1 portion is sold at POS counter.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddRecipeIngredient}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#EBF7F7] hover:bg-[#D6F0F0] text-[#146868] text-xs font-bold transition-all border border-[#A3DEDE] shadow-2xs cursor-pointer shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Add Ingredient</span>
+                  </button>
+                </div>
+
+                {recipe.length === 0 ? (
+                  <div className="p-4 rounded-xl bg-stone-50 border border-dashed border-stone-300 text-center space-y-1">
+                    <p className="text-xs font-semibold text-stone-600">No raw ingredients linked yet.</p>
+                    <p className="text-[11px] text-stone-400">Click <strong>+ Add Ingredient</strong> above to connect this dish to inventory items (e.g. coffee beans, milk, cups, bakery flour).</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {recipe.map((ing, idx) => {
+                      const matchingInv = inventory.find(i => i.id === ing.inventoryItemId);
+                      const costBasis = (matchingInv?.unitCost || 0) * (ing.quantityRequired || 0);
+
+                      return (
+                        <div key={idx} className="p-3 rounded-xl bg-[#F6F9FA] border border-[#D2DFE2] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                          <div className="flex-1 w-full sm:w-auto">
+                            <label className="text-[10px] font-bold text-stone-500 block uppercase mb-1">
+                              Ingredient #{idx + 1}
+                            </label>
+                            <select
+                              required
+                              value={ing.inventoryItemId}
+                              onChange={(e) => handleIngredientItemChange(idx, e.target.value)}
+                              className="w-full px-3 py-2 rounded-lg bg-white border border-[#D2DFE2] text-xs font-semibold text-[#10222B] focus:outline-none focus:border-[#1B8585]"
+                            >
+                              <option value="">-- Choose Stock Item --</option>
+                              {inventory.filter(i => !i.isArchived).map(invItem => (
+                                <option key={invItem.id} value={invItem.id}>
+                                  {invItem.name} ({invItem.sku}) — {invItem.quantity} {invItem.unit} in stock (₹{invItem.unitCost}/{invItem.unit})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
+                            <div>
+                              <label className="text-[10px] font-bold text-stone-500 block uppercase mb-1">
+                                Qty / Serving
+                              </label>
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="number"
+                                  step="any"
+                                  min="0.001"
+                                  required
+                                  value={ing.quantityRequired || ''}
+                                  onChange={(e) => handleIngredientQtyChange(idx, parseFloat(e.target.value) || 0)}
+                                  placeholder="0.02"
+                                  className="w-20 px-2.5 py-1.5 rounded-lg bg-white border border-[#D2DFE2] text-xs text-center font-bold text-[#10222B] focus:outline-none focus:border-[#1B8585]"
+                                />
+                                <span className="text-xs font-bold text-stone-600 min-w-[24px]">
+                                  {ing.unit || matchingInv?.unit || 'units'}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="text-right sm:text-left pt-3">
+                              <span className="text-[11px] text-stone-500 font-semibold block">
+                                Cost: <strong className="text-[#10222B]">₹{costBasis.toFixed(2)}</strong>
+                              </span>
+                            </div>
+
+                            <div className="pt-3">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveRecipeIngredient(idx)}
+                                className="p-2 text-rose-500 hover:bg-rose-100 rounded-lg transition-colors cursor-pointer"
+                                title="Remove ingredient from recipe"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Cost summary */}
+                    <div className="pt-2.5 px-1 flex items-center justify-between text-xs font-bold text-stone-700 border-t border-[#D2DFE2]">
+                      <span className="flex items-center gap-1 text-stone-500">
+                        <Layers className="w-3.5 h-3.5 text-[#1B8585]" />
+                        Total Raw Ingredient Cost Basis:
+                      </span>
+                      <span className="text-sm font-bold text-emerald-800">
+                        ₹{recipe.reduce((sum, ing) => {
+                          const inv = inventory.find(i => i.id === ing.inventoryItemId);
+                          return sum + ((inv?.unitCost || 0) * (ing.quantityRequired || 0));
+                        }, 0).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
