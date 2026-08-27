@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useMenu } from '../../context/MenuContext';
 import { useInventory } from '../../context/InventoryContext';
 import { usePromotion } from '../../context/PromotionContext';
 import { MenuItem, LiveOrder, StockDeduction, InventoryItem } from '../../types';
 import { DailyProfitAnalyticsModal } from './DailyProfitAnalyticsModal';
-import { RestockOrderModal } from './RestockOrderModal';
+import { SalesLedgerSection } from './SalesLedgerSection';
+import { INITIAL_SAMPLE_SALES_LEDGER } from '../../data/sampleSalesLedger';
+import * as firebaseService from '../../services/firebaseService';
 import { formatCurrency } from '../../utils/currency';
 import { 
   Coffee, 
@@ -29,7 +31,10 @@ import {
   Sparkles,
   RefreshCw,
   Zap,
-  Truck
+  Truck,
+  ArrowUpRight,
+  BarChart3,
+  Layers
 } from 'lucide-react';
 
 const MILK_OPTIONS = ['Oat Milk (Califia)', 'Whole Milk', 'Almond Milk', 'None / Black'];
@@ -39,122 +44,72 @@ export const LiveStoreCounter: React.FC = () => {
   const { inventory, updateStockQuantity, isSyncing } = useInventory();
   const { isHappyHourActive, calculateDiscount, trackPurchaseSavings } = usePromotion();
 
-  // 1. Counter Open/Closed Toggle State (CLOSED by default at the start)
-  const [isCounterOpen, setIsCounterOpen] = useState<boolean>(() => {
-    const saved = localStorage.getItem('aura_counter_open');
-    return saved ? JSON.parse(saved) : false; // Default closed
-  });
+  // View state: 'pos' (POS Register & Kitchen Queue) | 'ledger' (Overall Sales Ledger & Performance)
+  const [counterView, setCounterView] = useState<'pos' | 'ledger'>('pos');
+  const [firestoreLedgerOrders, setFirestoreLedgerOrders] = useState<LiveOrder[]>([]);
 
-  // 2. Auto-Incrementing Guest Number State
-  const [guestSeqNumber, setGuestSeqNumber] = useState<number>(() => {
-    const saved = localStorage.getItem('aura_guest_seq');
-    return saved ? JSON.parse(saved) : 101;
-  });
+  // 1. Counter Open/Closed Toggle State (Synchronized in real time across all devices via Firestore)
+  const [isCounterOpen, setIsCounterOpen] = useState<boolean>(false);
 
+  // 2. Auto-Incrementing Guest Number State (Synchronized across all devices)
+  const [guestSeqNumber, setGuestSeqNumber] = useState<number>(101);
   const [customerName, setCustomerName] = useState<string>(`Guest #${guestSeqNumber}`);
 
-  // 3. Active Order Ticket
+  // 3. Active Order Ticket (Local to this cashier terminal)
   const [ticketItems, setTicketItems] = useState<{ item: MenuItem; qty: number; milk: string }[]>([]);
 
-  // 4. Live Orders Queue (Starts clean with 0 orders)
-  const [liveOrders, setLiveOrders] = useState<LiveOrder[]>(() => {
-    const saved = localStorage.getItem('aura_live_orders');
-    if (saved !== null) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      } catch {}
-    }
-    return [];
-  });
+  // 4. Live Orders Queue (Synchronized in real time across all devices via Firestore)
+  const [liveOrders, setLiveOrders] = useState<LiveOrder[]>([]);
 
-  // 5. Collected Revenue & Items Prepared (Strictly 0.00 at clean reset)
-  const [collectedRevenue, setCollectedRevenue] = useState<number>(() => {
-    const saved = localStorage.getItem('aura_collected_rev');
-    if (saved !== null) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (typeof parsed === 'number') return parsed;
-      } catch {}
-    }
-    return 0.00;
-  });
-
-  const [itemsCompletedCount, setItemsCompletedCount] = useState<number>(() => {
-    const saved = localStorage.getItem('aura_items_completed');
-    if (saved !== null) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (typeof parsed === 'number') return parsed;
-      } catch {}
-    }
-    return 0;
-  });
+  // 5. Collected Revenue & Items Prepared (Synchronized in real time across all devices via Firestore)
+  const [collectedRevenue, setCollectedRevenue] = useState<number>(0.00);
+  const [itemsCompletedCount, setItemsCompletedCount] = useState<number>(0);
 
   const [activeCategory, setActiveCategory] = useState<string>('All');
   const [notification, setNotification] = useState<{ msg: string; type: 'success' | 'warn' | 'cancel' } | null>(null);
   
   // Modals state
   const [isDailyProfitModalOpen, setIsDailyProfitModalOpen] = useState(false);
-  const [isRestockOrderModalOpen, setIsRestockOrderModalOpen] = useState(false);
-  const [orderTargets, setOrderTargets] = useState<{ item: InventoryItem; suggestedQty?: number }[]>([]);
 
-  // Sync state on storage event or window focus
+  // 1. Centralized Multi-Device Counter State Listener (Cloud Firestore)
   useEffect(() => {
-    const handleSync = () => {
-      const savedOrders = localStorage.getItem('aura_live_orders');
-      if (savedOrders !== null) {
-        try {
-          const parsed = JSON.parse(savedOrders);
-          if (Array.isArray(parsed)) setLiveOrders(parsed);
-        } catch {}
-      }
-
-      const savedRev = localStorage.getItem('aura_collected_rev');
-      if (savedRev !== null) {
-        try {
-          const parsed = JSON.parse(savedRev);
-          if (typeof parsed === 'number') setCollectedRevenue(parsed);
-        } catch {}
-      }
-
-      const savedItems = localStorage.getItem('aura_items_completed');
-      if (savedItems !== null) {
-        try {
-          const parsed = JSON.parse(savedItems);
-          if (typeof parsed === 'number') setItemsCompletedCount(parsed);
-        } catch {}
-      }
-    };
-
-    window.addEventListener('storage', handleSync);
-    window.addEventListener('focus', handleSync);
-    return () => {
-      window.removeEventListener('storage', handleSync);
-      window.removeEventListener('focus', handleSync);
-    };
+    const unsub = firebaseService.subscribeToCounterState((state) => {
+      setIsCounterOpen(state.isOpen);
+      setCollectedRevenue(state.collectedRevenue);
+      setItemsCompletedCount(state.itemsCompletedCount);
+      setGuestSeqNumber(state.guestSeqNumber);
+    });
+    return () => unsub();
   }, []);
 
-  // Sync states to local storage
+  // 2. Centralized Multi-Device Live Orders & Kitchen Queue Listener (Cloud Firestore)
   useEffect(() => {
-    localStorage.setItem('aura_counter_open', JSON.stringify(isCounterOpen));
-  }, [isCounterOpen]);
+    const unsub = firebaseService.subscribeToLiveOrders((orders) => {
+      setLiveOrders(orders || []);
+    });
+    return () => unsub();
+  }, []);
 
+  // 3. Centralized Multi-Device Sales Ledger Listener (Cloud Firestore)
   useEffect(() => {
-    localStorage.setItem('aura_guest_seq', JSON.stringify(guestSeqNumber));
-  }, [guestSeqNumber]);
+    const unsub = firebaseService.subscribeToSalesLedger((orders) => {
+      setFirestoreLedgerOrders(orders || []);
+    });
+    return () => unsub();
+  }, []);
 
-  useEffect(() => {
-    localStorage.setItem('aura_live_orders', JSON.stringify(liveOrders));
-  }, [liveOrders]);
+  // Unified sales orders dataset: Combines Firestore persistent ledger and local live register queue
+  const allLedgerOrders = useMemo(() => {
+    const map = new Map<string, LiveOrder>();
+    
+    // 1. Firestore persistent ledger collection
+    firestoreLedgerOrders.forEach(order => map.set(order.id, order));
+    
+    // 2. Local live counter orders
+    liveOrders.forEach(order => map.set(order.id, order));
 
-  useEffect(() => {
-    localStorage.setItem('aura_collected_rev', JSON.stringify(collectedRevenue));
-  }, [collectedRevenue]);
-
-  useEffect(() => {
-    localStorage.setItem('aura_items_completed', JSON.stringify(itemsCompletedCount));
-  }, [itemsCompletedCount]);
+    return Array.from(map.values()).sort((a, b) => (b.completedAt || b.createdAt) - (a.completedAt || a.createdAt));
+  }, [firestoreLedgerOrders, liveOrders]);
 
   // Keep default name in sync with current guest sequence
   useEffect(() => {
@@ -339,22 +294,27 @@ export const LiveStoreCounter: React.FC = () => {
         price: i.effectivePrice,
         originalPrice: i.originalPrice,
         isDiscounted: i.isDiscounted,
-        customization: i.milk !== 'None' ? i.milk : undefined
+        customization: i.milk !== 'None' ? i.milk : undefined,
+        category: i.item.category
       })),
       total: orderTotal,
       totalCostBasis: Number(orderCostBasis.toFixed(2)) || Number((orderTotal * 0.28).toFixed(2)),
       totalDiscountSaved: orderTotalSavings,
+      paymentMethod: 'UPI / QR',
       status: 'preparing',
       createdAt: Date.now(),
       depletedIngredients: deductions
     };
 
-    setLiveOrders(prev => [newOrder, ...prev.slice(0, 29)]);
+    // 1. Save directly to Cloud Firestore live queue & sales ledger in real-time
+    await firebaseService.saveLiveOrder(newOrder);
+    await firebaseService.saveSalesOrder(newOrder);
     
-    // Auto-increment guest sequence number for the next customer
+    // 2. Auto-increment guest sequence number across all devices in real-time
     const nextSeq = guestSeqNumber + 1;
     setGuestSeqNumber(nextSeq);
     setCustomerName(`Guest #${nextSeq}`);
+    await firebaseService.saveCounterState({ guestSeqNumber: nextSeq });
 
     setNotification({
       msg: `Order #${newOrder.orderNumber} (${guestName}) sent to kitchen! Deducted ${deductions.length} items.${orderTotalSavings > 0 ? ` (Zero-Waste Discount applied: -${formatCurrency(orderTotalSavings)})` : ''}`,
@@ -363,20 +323,39 @@ export const LiveStoreCounter: React.FC = () => {
     setTimeout(() => setNotification(null), 3500);
   };
 
-  const markOrderReady = (orderId: string) => {
-    setLiveOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'ready' } : o));
+  const markOrderReady = async (orderId: string) => {
+    await firebaseService.updateLiveOrderStatus(orderId, 'ready');
+    const target = liveOrders.find(o => o.id === orderId);
+    if (target) {
+      await firebaseService.saveSalesOrder({ ...target, status: 'ready' });
+    }
   };
 
   // COMPLETE & COLLECT PAYMENT -> ACCURATELY INCREASES COLLECTED REVENUE & ZERO-WASTE SAVINGS
-  const markOrderCompletedAndPaid = (order: LiveOrder) => {
+  const markOrderCompletedAndPaid = async (order: LiveOrder) => {
     if (order.status === 'completed') return;
 
-    setLiveOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'completed', completedAt: Date.now() } : o));
+    const completedAt = Date.now();
+    const completedOrder: LiveOrder = {
+      ...order,
+      status: 'completed',
+      completedAt,
+      paymentMethod: order.paymentMethod || 'UPI / QR'
+    };
+
+    // Update live order and sales ledger in Cloud Firestore
+    await firebaseService.updateLiveOrderStatus(order.id, 'completed', completedAt);
+    await firebaseService.saveSalesOrder(completedOrder);
     
-    // Accurately credit revenue and completed items count
-    setCollectedRevenue(prev => Number((prev + order.total).toFixed(2)));
+    // Accurately credit revenue and completed items count in Cloud Firestore
     const totalItemsInOrder = order.items.reduce((acc, it) => acc + it.quantity, 0);
-    setItemsCompletedCount(prev => prev + totalItemsInOrder);
+    const newRev = Number((collectedRevenue + order.total).toFixed(2));
+    const newCount = itemsCompletedCount + totalItemsInOrder;
+
+    await firebaseService.saveCounterState({
+      collectedRevenue: newRev,
+      itemsCompletedCount: newCount
+    });
 
     // Track zero-waste recovered savings if discount was applied
     if (order.totalDiscountSaved && order.totalDiscountSaved > 0) {
@@ -396,7 +375,7 @@ export const LiveStoreCounter: React.FC = () => {
       return;
     }
 
-    // 1. Restore depleted stock back to inventory
+    // 1. Restore depleted stock back to inventory in Cloud Firestore
     for (const ded of order.depletedIngredients) {
       const item = inventory.find(i => i.id === ded.itemId);
       if (item) {
@@ -405,15 +384,21 @@ export const LiveStoreCounter: React.FC = () => {
       }
     }
 
-    // 2. If already completed, refund the revenue
+    // 2. If already completed, refund the revenue in Cloud Firestore
     if (order.status === 'completed') {
-      setCollectedRevenue(prev => Math.max(0, Number((prev - order.total).toFixed(2))));
       const totalItemsInOrder = order.items.reduce((acc, it) => acc + it.quantity, 0);
-      setItemsCompletedCount(prev => Math.max(0, prev - totalItemsInOrder));
+      const newRev = Math.max(0, Number((collectedRevenue - order.total).toFixed(2)));
+      const newCount = Math.max(0, itemsCompletedCount - totalItemsInOrder);
+      await firebaseService.saveCounterState({
+        collectedRevenue: newRev,
+        itemsCompletedCount: newCount
+      });
     }
 
-    // 3. Mark as cancelled
-    setLiveOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'cancelled' } : o));
+    // 3. Mark as cancelled in Cloud Firestore
+    await firebaseService.cancelLiveOrder(order.id);
+    const cancelledOrder: LiveOrder = { ...order, status: 'cancelled' };
+    await firebaseService.saveSalesOrder(cancelledOrder);
 
     setNotification({
       msg: `Order #${order.orderNumber} cancelled. Restored ${order.depletedIngredients.length} ingredients to stock.`,
@@ -423,49 +408,36 @@ export const LiveStoreCounter: React.FC = () => {
   };
 
   // Clear all completed / cancelled orders from history
-  const handleClearFinishedOrders = () => {
-    setLiveOrders(prev => prev.filter(o => o.status === 'preparing' || o.status === 'ready'));
+  const handleClearFinishedOrders = async () => {
+    const finished = liveOrders.filter(o => o.status === 'completed' || o.status === 'cancelled');
+    for (const ord of finished) {
+      await firebaseService.deleteLiveOrder(ord.id);
+    }
     setNotification({ msg: 'Cleared completed & cancelled orders from display queue.', type: 'success' });
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // HARD RESET ALL REVENUE & ORDERS TO 0
-  const handleResetAllToZero = () => {
-    if (window.confirm("Reset today's revenue to $0.00, clear completed count, and reset order queue to 0?")) {
-      setCollectedRevenue(0.00);
-      setItemsCompletedCount(0);
-      setLiveOrders([]);
+  // HARD RESET ALL REVENUE & ORDERS TO 0 ACROSS ALL DEVICES
+  const handleResetAllToZero = async () => {
+    if (window.confirm("Reset today's revenue to ₹0.00, clear completed count, and reset order queue to 0 on ALL devices?")) {
       setTicketItems([]);
-      setGuestSeqNumber(101);
       setCustomerName('Guest #101');
-      localStorage.setItem('aura_collected_rev', '0');
-      localStorage.setItem('aura_items_completed', '0');
-      localStorage.setItem('aura_live_orders', '[]');
-      localStorage.setItem('aura_guest_seq', '101');
-      setNotification({ msg: 'All counters, register revenue ($0.00), and order queues reset to 0.', type: 'success' });
+      await firebaseService.resetCounterState();
+      await firebaseService.clearLiveOrders();
+      setNotification({ msg: 'All counters, register revenue (₹0.00), and order queues reset to 0 across all devices.', type: 'success' });
       setTimeout(() => setNotification(null), 3000);
     }
   };
 
-  const handleToggleCounterStatus = () => {
-    if (isCounterOpen) {
-      setIsCounterOpen(false);
-      setNotification({ msg: 'Store Counter closed for shift.', type: 'warn' });
-    } else {
-      setIsCounterOpen(true);
-      setNotification({ msg: 'Store Counter is now OPEN & Live!', type: 'success' });
-    }
+  const handleToggleCounterStatus = async () => {
+    const next = !isCounterOpen;
+    setIsCounterOpen(next);
+    await firebaseService.saveCounterState({ isOpen: next });
+    setNotification({
+      msg: next ? 'Store Counter is now OPEN & Live across all devices!' : 'Store Counter closed for shift.',
+      type: next ? 'success' : 'warn'
+    });
     setTimeout(() => setNotification(null), 3000);
-  };
-
-  // Open Restock Order Modal for low stock items
-  const openRestockOrderModal = () => {
-    const lowStock = inventory.filter(i => !i.isArchived && i.quantity <= i.minThreshold);
-    const targets = lowStock.length > 0
-      ? lowStock.map(item => ({ item, suggestedQty: Math.max(10, Math.ceil((item.optimalParLevel || item.minThreshold * 2.5) - item.quantity)) }))
-      : inventory.slice(0, 4).map(item => ({ item, suggestedQty: 10 }));
-    setOrderTargets(targets);
-    setIsRestockOrderModalOpen(true);
   };
 
   // Calculations
@@ -490,7 +462,7 @@ export const LiveStoreCounter: React.FC = () => {
     <div className="space-y-8">
       
       {/* Master Store Status & Counter Toggle Banner (Pacific Drip & Ocean Fog Layout) */}
-      <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#D2DFE2]/80 shadow-warm-sm space-y-7">
+      <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#D2DFE2]/80 shadow-warm-sm space-y-7 print:hidden">
         
         {/* Top Row: Title, Live Status & Action Buttons */}
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 pb-6 border-b border-[#D2DFE2]/60">
@@ -539,27 +511,19 @@ export const LiveStoreCounter: React.FC = () => {
           {/* Right: Clean, Single-Row Action Bar */}
           <div className="flex flex-wrap items-center gap-3">
             
-            {/* View Today's Daily Revenue & Profit Report */}
+            {/* View Overall Sales Ledger Switch */}
             <button
               type="button"
-              onClick={() => setIsDailyProfitModalOpen(true)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#F2F6F7] hover:bg-[#E5ECEE] text-[#10222B] border border-[#D2DFE2] text-xs font-semibold transition-all shadow-xs active:scale-95"
-              title="View today's revenue, daily net profit, and complete order ledger"
+              onClick={() => setCounterView(prev => prev === 'ledger' ? 'pos' : 'ledger')}
+              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-xs active:scale-95 border cursor-pointer ${
+                counterView === 'ledger'
+                  ? 'bg-[#10222B] text-[#77C7C6] border-[#1B8585]'
+                  : 'bg-[#F2F6F7] hover:bg-[#E5ECEE] text-[#10222B] border-[#D2DFE2]'
+              }`}
+              title="View overall sales ledger distributed by Day, Week, Month, and Year"
             >
               <TrendingUp className="w-4 h-4 text-[#1B8585]" />
-              <span>Today's Profit & Ledger</span>
-            </button>
-
-            {/* Place Restock Purchase Order */}
-            <button
-              type="button"
-              disabled={isSyncing}
-              onClick={openRestockOrderModal}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#F2F6F7] hover:bg-[#E5ECEE] text-[#10222B] border border-[#D2DFE2] text-xs font-semibold transition-all shadow-xs active:scale-95 disabled:opacity-50 cursor-pointer"
-              title="Place supplier purchase order in 'Ordered' status"
-            >
-              <Truck className="w-4 h-4 text-[#1B8585]" />
-              <span>+ Place Restock Order</span>
+              <span>{counterView === 'ledger' ? '← Back to POS Register' : 'Overall Sales Ledger'}</span>
             </button>
 
             {/* Open / Close Counter Switch */}
@@ -678,10 +642,53 @@ export const LiveStoreCounter: React.FC = () => {
             <span className="text-[10px] opacity-75 font-mono">Live Counter</span>
           </div>
         )}
+
+        {/* Navigation Mode Switcher: POS Register vs Sales Ledger */}
+        <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-white border border-[#D2DFE2] self-start shadow-2xs">
+          <button
+            type="button"
+            onClick={() => setCounterView('pos')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              counterView === 'pos'
+                ? 'bg-[#10222B] text-[#77C7C6] shadow-warm-xs'
+                : 'text-stone-600 hover:text-[#10222B] hover:bg-[#F2F6F7]'
+            }`}
+          >
+            <Coffee className="w-4 h-4 text-[#77C7C6]" />
+            <span>POS Register & Kitchen</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setCounterView('ledger')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              counterView === 'ledger'
+                ? 'bg-[#10222B] text-[#77C7C6] shadow-warm-xs'
+                : 'text-stone-600 hover:text-[#10222B] hover:bg-[#F2F6F7]'
+            }`}
+          >
+            <TrendingUp className="w-4 h-4 text-[#1B8585]" />
+            <span>Overall Sales Ledger (Day / Week / Month / Year)</span>
+            <span className="px-2 py-0.5 rounded-full bg-[#1B8585] text-white text-[10px] font-bold">
+              Ledger
+            </span>
+          </button>
+        </div>
       </div>
 
-      {/* Main Counter Workspace: POS Touch Grid & Active Ticket */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      {counterView === 'ledger' ? (
+        <SalesLedgerSection
+          orders={allLedgerOrders}
+          isCounterOpen={isCounterOpen}
+          collectedRevenue={collectedRevenue}
+          onRefresh={() => {
+            firebaseService.fetchSalesLedger().then(setFirestoreLedgerOrders);
+          }}
+        />
+      ) : (
+        <>
+          {/* Main Counter Workspace: POS Touch Grid & Active Ticket */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start print:hidden">
         
         {/* Left: Quick Tap Menu Grid (7 Columns) */}
         <div className="lg:col-span-7 bg-white p-6 sm:p-7 rounded-3xl border border-[#D2DFE2]/80 shadow-warm-sm space-y-6 relative">
@@ -926,7 +933,7 @@ export const LiveStoreCounter: React.FC = () => {
       </div>
 
       {/* Live Kitchen & Barista Display Queue (KDS) */}
-      <div className="bg-white rounded-3xl border border-[#D2DFE2]/80 shadow-warm-sm p-6 sm:p-8 space-y-6">
+      <div className="bg-white rounded-3xl border border-[#D2DFE2]/80 shadow-warm-sm p-6 sm:p-8 space-y-6 print:hidden">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#D2DFE2]/60 pb-4">
           <div className="flex items-center gap-2.5">
             <Clock className="w-5 h-5 text-[#1B8585]" />
@@ -1073,6 +1080,40 @@ export const LiveStoreCounter: React.FC = () => {
         )}
       </div>
 
+          {/* Embedded Overall Sales Ledger Section in Live Counter */}
+          <div className="pt-8 border-t border-[#D2DFE2]/70 space-y-4">
+            <div className="flex items-center justify-between print:hidden">
+              <div>
+                <h3 className="font-serif font-bold text-xl text-[#10222B] flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-[#1B8585]" />
+                  <span>Overall Sales Ledger & Performance Distribution</span>
+                </h3>
+                <p className="text-xs text-stone-500 mt-0.5">
+                  Day-wise, week-wise, month-wise, and year-wise financial ledger and accounting
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCounterView('ledger')}
+                className="inline-flex items-center gap-1.5 text-xs text-[#1B8585] font-bold hover:underline cursor-pointer"
+              >
+                <span>Fullscreen Ledger View</span>
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <SalesLedgerSection
+              orders={allLedgerOrders}
+              isCounterOpen={isCounterOpen}
+              collectedRevenue={collectedRevenue}
+              onRefresh={() => {
+                firebaseService.fetchSalesLedger().then(setFirestoreLedgerOrders);
+              }}
+            />
+          </div>
+        </>
+      )}
+
       {/* Today's Daily Revenue & Profit Analytics Modal */}
       <DailyProfitAnalyticsModal
         isOpen={isDailyProfitModalOpen}
@@ -1081,17 +1122,6 @@ export const LiveStoreCounter: React.FC = () => {
         collectedRevenue={collectedRevenue}
         completedItemsCount={itemsCompletedCount}
         onResetRegister={handleResetAllToZero}
-      />
-
-      {/* Restock Purchase Order Modal */}
-      <RestockOrderModal
-        isOpen={isRestockOrderModalOpen}
-        initialItems={orderTargets}
-        onClose={() => setIsRestockOrderModalOpen(false)}
-        onOrderCreated={(orderNo) => {
-          setNotification({ msg: `Restock Order #${orderNo} placed! Status: Ordered / In Transit.`, type: 'success' });
-          setTimeout(() => setNotification(null), 3500);
-        }}
       />
 
     </div>

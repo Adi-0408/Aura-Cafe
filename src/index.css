@@ -62,31 +62,68 @@
   box-shadow: 0 16px 32px -8px rgba(16, 34, 43, 0.12);
 }
 
-/* Back-of-House Print Stylesheet for Clipboards & Purchase Orders */
+/* Professional Executive Print Stylesheet for Financial Statements & Accounting Ledgers */
 @media print {
-  body {
-    background-color: #ffffff !important;
-    color: #000000 !important;
+  @page {
+    size: auto;
+    margin: 10mm 12mm 12mm 12mm;
   }
 
-  header, nav, footer, .print\\:hidden {
+  body, html {
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    color: #10222B !important;
+    font-size: 10pt !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Strict print hiding for all UI elements, top register banners, buttons, tabs, navigations */
+  header, nav, footer, aside, .print\:hidden, [data-print-hidden="true"] {
     display: none !important;
   }
 
+  /* Remove shadow, borders, background tints that distort text in print */
+  .shadow-warm-xs, .shadow-warm-sm, .shadow-warm-md, .shadow-warm-lg, .shadow-warm-xl, .shadow-2xs {
+    box-shadow: none !important;
+  }
+
+  /* Expand all container scrolls so every table row prints without clipping */
+  .overflow-x-auto, .overflow-y-auto, [class*="max-h-"] {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  /* Avoid awkward page break cuts inside KPI cards, tables, rows */
+  .print-avoid-break, tr, .rounded-3xl, .rounded-2xl {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Table styling for crisp print */
   table {
     width: 100% !important;
     border-collapse: collapse !important;
+    page-break-inside: auto !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  tfoot {
+    display: table-footer-group !important;
   }
 
   th, td {
-    border: 1px solid #cccccc !important;
+    border: 1px solid #D2DFE2 !important;
     padding: 6px 10px !important;
-    font-size: 10pt !important;
+    font-size: 8.5pt !important;
+    color: #10222B !important;
   }
 
   th {
-    background-color: #f0f0f0 !important;
-    font-weight: bold !important;
+    background-color: #F2F6F7 !important;
+    font-weight: 700 !important;
   }
 }
-

@@ -31,104 +31,10 @@ import {
   RotateCcw
 } from 'lucide-react';
 
-const INITIAL_SAMPLE_ORDERS: LiveOrder[] = [
-  {
-    id: 'ord-101',
-    orderNumber: 101,
-    customerName: 'Ananya Sharma',
-    items: [
-      { menuItemId: 'm1', name: 'Madagascar Vanilla Flat White', quantity: 2, price: 340, customization: 'Oat Milk (Califia)' },
-      { menuItemId: 'm3', name: 'Almond Frangipane Croissant', quantity: 1, price: 280 }
-    ],
-    total: 960,
-    totalCostBasis: 245,
-    status: 'completed',
-    createdAt: Date.now() - 1000 * 60 * 180, // 3 hours ago
-    completedAt: Date.now() - 1000 * 60 * 165,
-    depletedIngredients: [
-      { itemId: 'inv-1', itemName: 'Ethiopia Yirgacheffe Beans', amountDeducted: 0.036, unit: 'kg', unitCost: 1800 },
-      { itemId: 'inv-4', itemName: 'Califia Barista Oat Milk', amountDeducted: 0.5, unit: 'L', unitCost: 320 }
-    ]
-  },
-  {
-    id: 'ord-102',
-    orderNumber: 102,
-    customerName: 'Rohan Mehta',
-    items: [
-      { menuItemId: 'm2', name: 'Kyoto 16-Hour Cold Drip', quantity: 1, price: 320 },
-      { menuItemId: 'm6', name: 'Avocado & Truffle Poached Tartine', quantity: 1, price: 540 }
-    ],
-    total: 860,
-    totalCostBasis: 210,
-    status: 'completed',
-    createdAt: Date.now() - 1000 * 60 * 120, // 2 hours ago
-    completedAt: Date.now() - 1000 * 60 * 105,
-    depletedIngredients: [
-      { itemId: 'inv-2', itemName: 'Colombia Geisha Green Beans', amountDeducted: 0.025, unit: 'kg', unitCost: 3400 }
-    ]
-  },
-  {
-    id: 'ord-103',
-    orderNumber: 103,
-    customerName: 'Priya Iyer',
-    items: [
-      { menuItemId: 'm4', name: 'Iced Rose Cardamom Latte', quantity: 1, price: 360, customization: 'Almond Milk' },
-      { menuItemId: 'm5', name: 'Ceremonial Matcha Croissant', quantity: 2, price: 310 }
-    ],
-    total: 980,
-    totalCostBasis: 275,
-    status: 'completed',
-    createdAt: Date.now() - 1000 * 60 * 60, // 1 hour ago
-    completedAt: Date.now() - 1000 * 60 * 45,
-    depletedIngredients: [
-      { itemId: 'inv-1', itemName: 'Ethiopia Yirgacheffe Beans', amountDeducted: 0.018, unit: 'kg', unitCost: 1800 },
-      { itemId: 'inv-5', itemName: 'Almond Breeze Barista Milk', amountDeducted: 0.25, unit: 'L', unitCost: 290 }
-    ]
-  },
-  {
-    id: 'ord-104',
-    orderNumber: 104,
-    customerName: 'Dev Patel',
-    items: [
-      { menuItemId: 'm1', name: 'Cortado with House Panela', quantity: 1, price: 260 },
-      { menuItemId: 'm7', name: 'Single-Origin Shakshuka Skillet', quantity: 1, price: 580 }
-    ],
-    total: 840,
-    totalCostBasis: 230,
-    status: 'ready',
-    createdAt: Date.now() - 1000 * 60 * 25, // 25 mins ago
-    depletedIngredients: [
-      { itemId: 'inv-1', itemName: 'Ethiopia Yirgacheffe Beans', amountDeducted: 0.018, unit: 'kg', unitCost: 1800 }
-    ]
-  },
-  {
-    id: 'ord-105',
-    orderNumber: 105,
-    customerName: 'Kavita Sen',
-    items: [
-      { menuItemId: 'm3', name: 'Cascara Berry Sparkling Tea', quantity: 2, price: 290 }
-    ],
-    total: 580,
-    totalCostBasis: 120,
-    status: 'preparing',
-    createdAt: Date.now() - 1000 * 60 * 10, // 10 mins ago
-    depletedIngredients: [
-      { itemId: 'inv-3', itemName: 'Sumatra Mandheling Dark Roast', amountDeducted: 0.02, unit: 'kg', unitCost: 1450 }
-    ]
-  }
-];
+import * as firebaseService from '../../services/firebaseService';
 
 export const OrdersManager: React.FC = () => {
-  const [orders, setOrders] = useState<LiveOrder[]>(() => {
-    const saved = localStorage.getItem('aura_live_orders');
-    if (saved !== null) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      } catch {}
-    }
-    return [];
-  });
+  const [orders, setOrders] = useState<LiveOrder[]>([]);
 
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'preparing' | 'ready' | 'cancelled'>('all');
@@ -137,48 +43,65 @@ export const OrdersManager: React.FC = () => {
   const [selectedOrder, setSelectedOrder] = useState<LiveOrder | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
 
-  // Sync to local storage
+  // Subscribe to real-time Cloud Firestore orders (live orders queue + historical sales ledger)
   useEffect(() => {
-    localStorage.setItem('aura_live_orders', JSON.stringify(orders));
-  }, [orders]);
+    let liveCache: LiveOrder[] = [];
+    let ledgerCache: LiveOrder[] = [];
 
-  // Sync on window focus or storage change
-  useEffect(() => {
-    const handleSync = () => {
-      const saved = localStorage.getItem('aura_live_orders');
-      if (saved !== null) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) setOrders(parsed);
-        } catch {}
-      }
+    const mergeAndSet = () => {
+      const map = new Map<string, LiveOrder>();
+      ledgerCache.forEach(o => map.set(o.id, o));
+      liveCache.forEach(o => map.set(o.id, o));
+      setOrders(Array.from(map.values()).sort((a, b) => b.createdAt - a.createdAt));
     };
-    window.addEventListener('storage', handleSync);
-    window.addEventListener('focus', handleSync);
+
+    const unsubLive = firebaseService.subscribeToLiveOrders((remoteLive) => {
+      liveCache = remoteLive || [];
+      mergeAndSet();
+    });
+
+    const unsubLedger = firebaseService.subscribeToSalesLedger((remoteLedger) => {
+      ledgerCache = remoteLedger || [];
+      mergeAndSet();
+    });
+
     return () => {
-      window.removeEventListener('storage', handleSync);
-      window.removeEventListener('focus', handleSync);
+      unsubLive();
+      unsubLedger();
     };
   }, []);
 
   // Status updates
-  const handleUpdateStatus = (orderId: string, newStatus: LiveOrder['status']) => {
+  const handleUpdateStatus = async (orderId: string, newStatus: LiveOrder['status']) => {
+    const completedAt = newStatus === 'completed' ? Date.now() : undefined;
+    
     setOrders(prev => prev.map(o => {
       if (o.id === orderId) {
         return {
           ...o,
           status: newStatus,
-          completedAt: newStatus === 'completed' ? Date.now() : o.completedAt
+          completedAt: completedAt || o.completedAt
         };
       }
       return o;
     }));
 
-    if (selectedOrder && selectedOrder.id === orderId) {
-      setSelectedOrder(prev => prev ? { ...prev, status: newStatus, completedAt: newStatus === 'completed' ? Date.now() : prev.completedAt } : null);
+    const target = orders.find(o => o.id === orderId);
+    if (target) {
+      const updatedOrder: LiveOrder = {
+        ...target,
+        status: newStatus,
+        completedAt: completedAt || target.completedAt
+      };
+      await firebaseService.updateLiveOrderStatus(orderId, newStatus, completedAt);
+      await firebaseService.saveSalesOrder(updatedOrder);
     }
 
-    setActionNotice(`Order status updated to "${newStatus}".`);
+    if (selectedOrder && selectedOrder.id === orderId) {
+      setSelectedOrder(prev => prev ? { ...prev, status: newStatus, completedAt: completedAt || prev.completedAt } : null);
+    }
+
+    setActionNotice(`Order status updated to "${newStatus}" across all devices.`);
     setTimeout(() => setActionNotice(null), 3000);
   };
 

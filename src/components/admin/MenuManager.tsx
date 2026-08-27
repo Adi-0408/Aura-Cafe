@@ -3,6 +3,8 @@ import { useMenu } from '../../context/MenuContext';
 import { MenuItem, MenuCategory, DietaryTag } from '../../types';
 import { DietaryBadge } from '../common/Badge';
 import { formatCurrency } from '../../utils/currency';
+import { MenuExcelImportModal } from './MenuExcelImportModal';
+import { downloadMenuItemsExcelTemplate, downloadMenuItemsCsvTemplate } from '../../utils/excelImport';
 import { 
   UtensilsCrossed, 
   Plus, 
@@ -10,7 +12,12 @@ import {
   Edit3, 
   Clock, 
   CheckCircle2,
-  Sparkles
+  Sparkles,
+  FileSpreadsheet,
+  Download,
+  Trash2,
+  Coffee,
+  FileText
 } from 'lucide-react';
 
 const CATEGORIES: MenuCategory[] = [
@@ -23,9 +30,10 @@ const CATEGORIES: MenuCategory[] = [
 const DIETARY_OPTIONS: DietaryTag[] = ['VG', 'V', 'GF', 'DF', 'N'];
 
 export const MenuManager: React.FC = () => {
-  const { menuItems, toggleAvailability, saveMenuItem } = useMenu();
+  const { menuItems, toggleAvailability, saveMenuItem, deleteMenuItem } = useMenu();
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [isCreatingNew, setIsCreatingNew] = useState(false);
+  const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
 
   // Form states
   const [name, setName] = useState('');
@@ -94,6 +102,14 @@ export const MenuManager: React.FC = () => {
     setIsCreatingNew(false);
   };
 
+  const handleDelete = async (id: string) => {
+    if (window.confirm('Are you sure you want to remove this menu item?')) {
+      await deleteMenuItem(id);
+      setEditingItem(null);
+      setIsCreatingNew(false);
+    }
+  };
+
   const toggleTag = (tag: DietaryTag) => {
     setDietaryTags(prev => 
       prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
@@ -104,94 +120,168 @@ export const MenuManager: React.FC = () => {
     <div className="space-y-8">
       
       {/* Header Bar */}
-      <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#D2DFE2]/80 shadow-warm-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+      <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#D2DFE2]/80 shadow-warm-sm flex flex-col xl:flex-row xl:items-center justify-between gap-6">
         <div>
-          <h2 className="font-serif text-2xl sm:text-3xl font-bold text-[#10222B]">
-            Menu Catalog & Live Availability
-          </h2>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h2 className="font-serif text-2xl sm:text-3xl font-bold text-[#10222B]">
+              Menu Catalog & Live Availability
+            </h2>
+            <span className="px-2.5 py-0.5 rounded-full bg-[#EBF7F7] text-[#146868] text-xs font-bold border border-[#A3DEDE]">
+              {menuItems.length} Products Active
+            </span>
+          </div>
           <p className="text-xs sm:text-sm text-stone-500 mt-1">
             Toggle recipes in real time. Items marked unavailable instantly display a "Sold Out Today" badge on customer devices.
           </p>
         </div>
 
-        <button
-          onClick={openNew}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#10222B] text-[#F2F6F7] hover:bg-[#1E3A47] text-xs font-bold transition-all shadow-warm-sm active:scale-95 shrink-0"
-        >
-          <Plus className="w-4 h-4 text-[#77C7C6]" />
-          <span>Add Menu Item</span>
-        </button>
-      </div>
-
-      {/* Menu Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {menuItems.map((item) => (
-          <div
-            key={item.id}
-            className={`bg-white rounded-3xl p-6 border transition-all shadow-warm-sm flex flex-col justify-between space-y-5 ${
-              item.isAvailable ? 'border-[#D2DFE2]/80 hover:shadow-warm-md' : 'border-rose-200 bg-rose-50/20'
-            }`}
+        {/* Action Suite */}
+        <div className="flex items-center gap-2.5 flex-wrap shrink-0">
+          <button
+            type="button"
+            onClick={downloadMenuItemsExcelTemplate}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-[#F6F9FA] hover:bg-[#E5ECEE] text-stone-700 border border-[#D2DFE2] text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
+            title="Download Excel Template file (.xlsx)"
           >
-            <div className="space-y-4">
-              <div className="relative aspect-[16/10] rounded-2xl overflow-hidden bg-stone-100 border border-[#D2DFE2]/60">
-                <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
-                <div className="absolute top-3 right-3 px-3 py-1 rounded-full bg-[#10222B]/90 text-[#77C7C6] font-semibold text-xs shadow-sm">
-                  {formatCurrency(item.price)}
-                </div>
-                {item.featured && (
-                  <div className="absolute top-3 left-3 px-2.5 py-0.5 rounded-md bg-[#1B8585] text-white text-[10px] font-bold uppercase tracking-wider">
-                    Signature
-                  </div>
-                )}
-              </div>
+            <Download className="w-4 h-4 text-[#1B8585]" />
+            <span>Excel Template</span>
+          </button>
 
-              <div className="space-y-2">
-                <span className="text-[10px] uppercase font-bold text-[#1B8585] block">
-                  {item.category}
-                </span>
+          <button
+            type="button"
+            onClick={() => setIsExcelModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#EBF7F7] hover:bg-[#D9EFEF] text-[#146868] border border-[#A3DEDE] text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
+            title="Bulk import dishes from Excel file"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-[#1B8585]" />
+            <span>Import from Excel</span>
+          </button>
 
-                <h4 className="font-serif font-bold text-lg text-[#10222B]">
-                  {item.name}
-                </h4>
-
-                <p className="text-stone-600 text-xs leading-relaxed line-clamp-2">
-                  {item.description}
-                </p>
-
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {item.dietaryTags.map(tag => (
-                    <DietaryBadge key={tag} tag={tag} size="sm" />
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Bottom Controls */}
-            <div className="pt-4 border-t border-[#D2DFE2]/60 flex items-center justify-between gap-2">
-              <button
-                onClick={() => toggleAvailability(item.id, !item.isAvailable)}
-                className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                  item.isAvailable
-                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100'
-                    : 'bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100'
-                }`}
-              >
-                <span className={`w-2 h-2 rounded-full ${item.isAvailable ? 'bg-emerald-600' : 'bg-rose-600'}`}></span>
-                <span>{item.isAvailable ? 'Live on Menu' : 'Sold Out Today'}</span>
-              </button>
-
-              <button
-                onClick={() => openEditor(item)}
-                className="p-2 rounded-xl bg-[#F2F6F7] hover:bg-[#E5ECEE] text-stone-700 text-xs font-semibold border border-[#D2DFE2] transition-colors"
-                title="Edit item details"
-              >
-                <Edit3 className="w-4 h-4" />
-              </button>
-            </div>
-
-          </div>
-        ))}
+          <button
+            onClick={openNew}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#10222B] text-[#F2F6F7] hover:bg-[#1E3A47] text-xs font-bold transition-all shadow-warm-sm active:scale-95 cursor-pointer"
+          >
+            <Plus className="w-4 h-4 text-[#77C7C6]" />
+            <span>Add Menu Item</span>
+          </button>
+        </div>
       </div>
+
+      {/* Menu Grid or Empty State */}
+      {menuItems.length === 0 ? (
+        <div className="p-12 sm:p-16 text-center bg-white rounded-3xl border border-[#D2DFE2] shadow-warm-xs flex flex-col items-center justify-center space-y-5 animate-fade-in">
+          <div className="w-16 h-16 rounded-2xl bg-[#EBF7F7] text-[#1B8585] flex items-center justify-center border border-[#A3DEDE] shadow-2xs">
+            <Coffee className="w-8 h-8 text-[#1B8585]" />
+          </div>
+
+          <div className="space-y-1.5 max-w-md">
+            <h4 className="font-serif text-xl font-bold text-[#10222B]">
+              No Menu Items Found
+            </h4>
+            <p className="text-xs text-stone-500 leading-relaxed">
+              Your cafe menu catalog is currently clean and empty. You can add items one-by-one or upload your pre-formatted Excel template to import all beverages and dishes instantly.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 flex-wrap justify-center pt-2">
+            <button
+              type="button"
+              onClick={downloadMenuItemsExcelTemplate}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#F6F9FA] hover:bg-[#E5ECEE] border border-[#D2DFE2] text-xs font-bold text-[#10222B] transition-all cursor-pointer"
+            >
+              <Download className="w-4 h-4 text-[#1B8585]" />
+              <span>Download Excel Template (.xlsx)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsExcelModalOpen(true)}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#10222B] text-[#77C7C6] hover:text-white text-xs font-bold transition-all shadow-warm-xs active:scale-95 cursor-pointer"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>Import Menu from Excel</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={openNew}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white hover:bg-stone-50 border border-[#D2DFE2] text-xs font-bold text-stone-700 transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Single Item</span>
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {menuItems.map((item) => (
+            <div
+              key={item.id}
+              className={`bg-white rounded-3xl p-6 border transition-all shadow-warm-sm flex flex-col justify-between space-y-5 ${
+                item.isAvailable ? 'border-[#D2DFE2]/80 hover:shadow-warm-md' : 'border-rose-200 bg-rose-50/20'
+              }`}
+            >
+              <div className="space-y-4">
+                <div className="relative aspect-[16/10] rounded-2xl overflow-hidden bg-stone-100 border border-[#D2DFE2]/60">
+                  <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                  <div className="absolute top-3 right-3 px-3 py-1 rounded-full bg-[#10222B]/90 text-[#77C7C6] font-semibold text-xs shadow-sm">
+                    {formatCurrency(item.price)}
+                  </div>
+                  {item.featured && (
+                    <div className="absolute top-3 left-3 px-2.5 py-0.5 rounded-md bg-[#1B8585] text-white text-[10px] font-bold uppercase tracking-wider">
+                      Signature
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <span className="text-[10px] uppercase font-bold text-[#1B8585] block">
+                    {item.category}
+                  </span>
+
+                  <h4 className="font-serif font-bold text-lg text-[#10222B]">
+                    {item.name}
+                  </h4>
+
+                  <p className="text-stone-600 text-xs leading-relaxed line-clamp-2">
+                    {item.description}
+                  </p>
+
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {item.dietaryTags.map(tag => (
+                      <DietaryBadge key={tag} tag={tag} size="sm" />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom Controls */}
+              <div className="pt-4 border-t border-[#D2DFE2]/60 flex items-center justify-between gap-2">
+                <button
+                  onClick={() => toggleAvailability(item.id, !item.isAvailable)}
+                  className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                    item.isAvailable
+                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100'
+                      : 'bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100'
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${item.isAvailable ? 'bg-emerald-600' : 'bg-rose-600'}`}></span>
+                  <span>{item.isAvailable ? 'Live on Menu' : 'Sold Out Today'}</span>
+                </button>
+
+                <button
+                  onClick={() => openEditor(item)}
+                  className="p-2 rounded-xl bg-[#F2F6F7] hover:bg-[#E5ECEE] text-stone-700 text-xs font-semibold border border-[#D2DFE2] transition-colors cursor-pointer"
+                  title="Edit item details"
+                >
+                  <Edit3 className="w-4 h-4" />
+                </button>
+              </div>
+
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Edit / Create Item Dialog */}
       {(editingItem || isCreatingNew) && (
@@ -207,7 +297,7 @@ export const MenuManager: React.FC = () => {
               </div>
               <button
                 onClick={() => { setEditingItem(null); setIsCreatingNew(false); }}
-                className="p-1 rounded-lg text-stone-300 hover:text-white"
+                className="p-1 rounded-lg text-stone-300 hover:text-white cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -287,7 +377,7 @@ export const MenuManager: React.FC = () => {
                         type="button"
                         key={tag}
                         onClick={() => toggleTag(tag)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border cursor-pointer ${
                           isSelected
                             ? 'bg-[#1B8585] text-white border-[#146868]'
                             : 'bg-white text-stone-600 border-[#D2DFE2]'
@@ -354,26 +444,45 @@ export const MenuManager: React.FC = () => {
                 </label>
               </div>
 
-              <div className="pt-4 border-t border-[#D2DFE2] flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => { setEditingItem(null); setIsCreatingNew(false); }}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-stone-600 hover:bg-stone-100"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-[#10222B] text-[#F2F6F7] text-xs font-bold hover:bg-[#1E3A47] transition-colors shadow-sm"
-                >
-                  Save Menu Item
-                </button>
+              <div className="pt-4 border-t border-[#D2DFE2] flex items-center justify-between">
+                {editingItem ? (
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(editingItem.id)}
+                    className="px-3.5 py-2 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Delete Item</span>
+                  </button>
+                ) : <div />}
+
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { setEditingItem(null); setIsCreatingNew(false); }}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold text-stone-600 hover:bg-stone-100 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 rounded-xl bg-[#10222B] text-[#F2F6F7] text-xs font-bold hover:bg-[#1E3A47] transition-colors shadow-sm cursor-pointer"
+                  >
+                    Save Menu Item
+                  </button>
+                </div>
               </div>
             </form>
 
           </div>
         </div>
       )}
+
+      {/* Menu Excel Import Modal */}
+      <MenuExcelImportModal
+        isOpen={isExcelModalOpen}
+        onClose={() => setIsExcelModalOpen(false)}
+      />
 
     </div>
   );

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useInventory } from '../../context/InventoryContext';
+import * as firebaseService from '../../services/firebaseService';
 import { 
   Boxes, 
   AlertTriangle, 
@@ -61,15 +62,15 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children, activeTab, o
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  // Check store counter open status from local storage
-  const isCounterOpen = (() => {
-    try {
-      const saved = localStorage.getItem('aura_counter_open');
-      return saved ? JSON.parse(saved) : false;
-    } catch {
-      return false;
-    }
-  })();
+  // Real-time counter open status across all devices
+  const [isCounterOpen, setIsCounterOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    const unsub = firebaseService.subscribeToCounterState((state) => {
+      setIsCounterOpen(state.isOpen);
+    });
+    return () => unsub();
+  }, []);
 
   if (user && user.role === 'customer') {
     return (

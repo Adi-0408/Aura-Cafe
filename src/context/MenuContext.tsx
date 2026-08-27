@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { MenuItem, MenuCategory, DietaryTag } from '../types';
 import * as firebaseService from '../services/firebaseService';
-import { mockStorage, subscribeToKey } from '../services/mockService';
+import { mockStorage } from '../services/mockService';
 
 interface MenuContextType {
   menuItems: MenuItem[];
@@ -17,6 +17,8 @@ interface MenuContextType {
   setSearchQuery: (query: string) => void;
   toggleAvailability: (id: string, isAvailable: boolean) => Promise<void>;
   saveMenuItem: (item: MenuItem) => Promise<void>;
+  bulkImportMenuItems: (items: MenuItem[]) => Promise<void>;
+  deleteMenuItem: (id: string) => Promise<void>;
   refreshMenu: () => Promise<void>;
 }
 
@@ -32,15 +34,15 @@ export const MenuProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const unsubscribe = firebaseService.subscribeToMenuItems((items) => {
-      if (items && items.length > 0) {
-        setMenuItems(items);
+      setMenuItems(items || []);
+      if (items) {
         mockStorage.saveMenu(items);
       }
       setLoading(false);
     }, (err) => {
       console.warn('Firestore realtime menu fallback to local:', err);
       const local = mockStorage.getMenu();
-      setMenuItems(local);
+      setMenuItems(local || []);
       setLoading(false);
     });
 
@@ -87,6 +89,51 @@ export const MenuProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const bulkImportMenuItems = async (itemsToImport: MenuItem[]) => {
+    setIsSyncing(true);
+    try {
+      const existingMap = new Map(menuItems.map(m => [m.id, m]));
+      itemsToImport.forEach(item => {
+        existingMap.set(item.id, item);
+      });
+      const merged = Array.from(existingMap.values());
+      
+      setMenuItems(merged);
+      mockStorage.saveMenu(merged);
+      await firebaseService.batchSaveMenuItems(itemsToImport);
+    } catch (err) {
+      console.warn('Error bulk importing menu items:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const deleteMenuItem = async (id: string) => {
+    setIsSyncing(true);
+    mockStorage.deleteMenuItem(id);
+    setMenuItems(mockStorage.getMenu());
+    try {
+      await firebaseService.deleteMenuItem(id);
+    } catch (err) {
+      console.warn('Menu item deleted locally:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const refreshMenu = async () => {
+    setLoading(true);
+    try {
+      const items = await firebaseService.fetchMenuItems();
+      setMenuItems(items);
+      mockStorage.saveMenu(items);
+    } catch (err) {
+      console.warn('Could not refresh menu from cloud:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Filtered menu items
   const filteredItems = useMemo(() => {
     return menuItems.filter(item => {
@@ -101,32 +148,15 @@ export const MenuProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       // Search query check
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchesName = item.name.toLowerCase().includes(q);
-        const matchesDesc = item.description.toLowerCase().includes(q);
-        const matchesNotes = item.tastingNotes?.some(note => note.toLowerCase().includes(q));
-        if (!matchesName && !matchesDesc && !matchesNotes) {
-          return false;
-        }
+        const query = searchQuery.toLowerCase();
+        const matchesName = item.name.toLowerCase().includes(query);
+        const matchesDesc = item.description.toLowerCase().includes(query);
+        const matchesNotes = item.tastingNotes?.some(note => note.toLowerCase().includes(query));
+        return matchesName || matchesDesc || matchesNotes;
       }
       return true;
     });
   }, [menuItems, selectedCategory, selectedDietaryTags, searchQuery]);
-
-  const refreshMenu = async () => {
-    try {
-      setLoading(true);
-      const items = await firebaseService.fetchMenuItems();
-      if (items && items.length > 0) {
-        setMenuItems(items);
-        mockStorage.saveMenu(items);
-      }
-    } catch (e) {
-      console.warn('Manual menu refresh note:', e);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <MenuContext.Provider
@@ -144,6 +174,8 @@ export const MenuProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSearchQuery,
         toggleAvailability,
         saveMenuItem,
+        bulkImportMenuItems,
+        deleteMenuItem,
         refreshMenu,
       }}
     >
@@ -152,7 +184,7 @@ export const MenuProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 };
 
-export const useMenu = () => {
+export const useMenu = (): MenuContextType => {
   const context = useContext(MenuContext);
   if (!context) {
     throw new Error('useMenu must be used within a MenuProvider');

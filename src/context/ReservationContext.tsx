@@ -55,8 +55,8 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     // 2. Realtime Firestore tables subscription
     const unsubTables = firebaseService.subscribeToTables((tbls) => {
-      if (tbls && tbls.length > 0) {
-        setTables(tbls);
+      setTables(tbls || []);
+      if (tbls) {
         mockStorage.saveTables(tbls);
       }
     }, (err) => {

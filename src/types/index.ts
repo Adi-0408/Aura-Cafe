@@ -245,6 +245,7 @@ export interface OrderItemEntry {
   originalPrice?: number;
   isDiscounted?: boolean;
   customization?: string;
+  category?: string;
 }
 
 export interface StockDeduction {
@@ -263,10 +264,12 @@ export interface LiveOrder {
   total: number;
   totalCostBasis?: number;
   totalDiscountSaved?: number;
+  paymentMethod?: 'UPI / QR' | 'Credit Card' | 'Cash' | 'Loyalty Token';
   status: 'preparing' | 'ready' | 'completed' | 'cancelled';
   createdAt: number;
   completedAt?: number;
   depletedIngredients: StockDeduction[];
+  notes?: string;
 }
 
 export type RestockOrderStatus = 'ordered' | 'in_transit' | 'received' | 'cancelled';

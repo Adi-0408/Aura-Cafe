@@ -27,9 +27,11 @@ import {
   PromotionSettings,
   CafeTable,
   ReservationStatus,
-  TableStatus
+  TableStatus,
+  LiveOrder
 } from '../types';
 import { INITIAL_INVENTORY, INITIAL_MENU_ITEMS, INITIAL_RESERVATIONS, INITIAL_TABLES } from './mockData';
+import { INITIAL_SAMPLE_SALES_LEDGER } from '../data/sampleSalesLedger';
 
 const INVENTORY_COLLECTION = 'inventory';
 const RESTOCK_ORDERS_COLLECTION = 'restock_orders';
@@ -37,6 +39,7 @@ const MENU_COLLECTION = 'menu_items';
 const RESERVATIONS_COLLECTION = 'reservations';
 const USERS_COLLECTION = 'users';
 const TABLES_COLLECTION = 'tables';
+const SALES_LEDGER_COLLECTION = 'sales_ledger';
 
 // --- USER & CUSTOMER DATABASE OPERATIONS ---
 
@@ -342,6 +345,7 @@ export const syncReservationToUser = async (reservation: Reservation): Promise<v
 
 export const seedInventoryToFirestore = async (): Promise<void> => {
   try {
+    if (INITIAL_INVENTORY.length === 0) return;
     const batch = writeBatch(db);
     INITIAL_INVENTORY.forEach(item => {
       const itemRef = doc(db, INVENTORY_COLLECTION, item.id);
@@ -358,13 +362,12 @@ export const fetchInventory = async (): Promise<InventoryItem[]> => {
     const q = query(collection(db, INVENTORY_COLLECTION), orderBy('name', 'asc'));
     const snapshot = await getDocs(q);
     if (snapshot.empty) {
-      await seedInventoryToFirestore();
-      return INITIAL_INVENTORY;
+      return [];
     }
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as InventoryItem));
   } catch (error) {
     console.error('Error fetching inventory from Firestore:', error);
-    return INITIAL_INVENTORY;
+    return [];
   }
 };
 
@@ -375,8 +378,7 @@ export const subscribeToInventory = (
   const colRef = collection(db, INVENTORY_COLLECTION);
   return onSnapshot(colRef, (snapshot) => {
     if (snapshot.empty) {
-      seedInventoryToFirestore().catch(console.warn);
-      onUpdate(INITIAL_INVENTORY);
+      onUpdate([]);
     } else {
       const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as InventoryItem));
       // Sort alphabetically by name
@@ -633,6 +635,7 @@ export const deleteRestockOrder = async (orderId: string): Promise<void> => {
 
 export const seedMenuToFirestore = async (): Promise<void> => {
   try {
+    if (INITIAL_MENU_ITEMS.length === 0) return;
     const batch = writeBatch(db);
     INITIAL_MENU_ITEMS.forEach(item => {
       const itemRef = doc(db, MENU_COLLECTION, item.id);
@@ -649,13 +652,12 @@ export const fetchMenuItems = async (): Promise<MenuItem[]> => {
     const q = query(collection(db, MENU_COLLECTION), orderBy('name', 'asc'));
     const snapshot = await getDocs(q);
     if (snapshot.empty) {
-      await seedMenuToFirestore();
-      return INITIAL_MENU_ITEMS;
+      return [];
     }
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MenuItem));
   } catch (error) {
     console.error('Error fetching menu items from Firestore:', error);
-    return INITIAL_MENU_ITEMS;
+    return [];
   }
 };
 
@@ -666,8 +668,7 @@ export const subscribeToMenuItems = (
   const colRef = collection(db, MENU_COLLECTION);
   return onSnapshot(colRef, (snapshot) => {
     if (snapshot.empty) {
-      seedMenuToFirestore().catch(console.warn);
-      onUpdate(INITIAL_MENU_ITEMS);
+      onUpdate([]);
     } else {
       const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as MenuItem));
       items.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
@@ -685,6 +686,20 @@ export const saveMenuItem = async (item: MenuItem): Promise<void> => {
     await setDoc(menuRef, item, { merge: true });
   } catch (error) {
     console.error('Error saving menu item to Firestore:', error);
+    throw error;
+  }
+};
+
+export const batchSaveMenuItems = async (items: MenuItem[]): Promise<void> => {
+  try {
+    const batch = writeBatch(db);
+    items.forEach(item => {
+      const ref = doc(db, MENU_COLLECTION, item.id);
+      batch.set(ref, item, { merge: true });
+    });
+    await batch.commit();
+  } catch (error) {
+    console.error('Error batch saving menu items to Firestore:', error);
     throw error;
   }
 };
@@ -723,6 +738,16 @@ export const toggleMenuItemAvailability = async (id: string, isAvailable: boolea
     });
   } catch (error) {
     console.error('Error toggling menu availability in Firestore:', error);
+    throw error;
+  }
+};
+
+export const deleteMenuItem = async (id: string): Promise<void> => {
+  try {
+    const menuRef = doc(db, MENU_COLLECTION, id);
+    await deleteDoc(menuRef);
+  } catch (error) {
+    console.error('Error deleting menu item from Firestore:', error);
     throw error;
   }
 };
@@ -838,6 +863,7 @@ export const updateReservationStatus = async (
 
 export const seedTablesToFirestore = async (): Promise<void> => {
   try {
+    if (INITIAL_TABLES.length === 0) return;
     const batch = writeBatch(db);
     INITIAL_TABLES.forEach(table => {
       const tableRef = doc(db, TABLES_COLLECTION, table.id);
@@ -854,13 +880,12 @@ export const fetchTables = async (): Promise<CafeTable[]> => {
     const q = query(collection(db, TABLES_COLLECTION));
     const snapshot = await getDocs(q);
     if (snapshot.empty) {
-      await seedTablesToFirestore();
-      return INITIAL_TABLES;
+      return [];
     }
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CafeTable));
   } catch (error) {
-    console.warn('Using default tables:', error);
-    return INITIAL_TABLES;
+    console.warn('Error fetching tables from cloud:', error);
+    return [];
   }
 };
 
@@ -871,11 +896,9 @@ export const subscribeToTables = (
   const colRef = collection(db, TABLES_COLLECTION);
   return onSnapshot(colRef, (snapshot) => {
     if (snapshot.empty) {
-      seedTablesToFirestore().catch(console.warn);
-      onUpdate(INITIAL_TABLES);
+      onUpdate([]);
     } else {
       const tables = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as CafeTable));
-      // Sort tables by name
       tables.sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { numeric: true }));
       onUpdate(tables);
     }
@@ -972,8 +995,16 @@ export const seedFirestore = async (): Promise<{ success: boolean; count: number
       batch.set(ref, item);
     });
 
+    INITIAL_SAMPLE_SALES_LEDGER.forEach(order => {
+      const ref = doc(db, SALES_LEDGER_COLLECTION, order.id);
+      batch.set(ref, order);
+    });
+
     await batch.commit();
-    return { success: true, count: INITIAL_INVENTORY.length + INITIAL_MENU_ITEMS.length + INITIAL_RESERVATIONS.length };
+    return { 
+      success: true, 
+      count: INITIAL_INVENTORY.length + INITIAL_MENU_ITEMS.length + INITIAL_RESERVATIONS.length + INITIAL_SAMPLE_SALES_LEDGER.length 
+    };
   } catch (error) {
     console.error('Error seeding Firestore batch:', error);
     throw error;
@@ -1052,4 +1083,294 @@ export const recordDiscountSavings = async (savingsAmount: number, itemsCount: n
     console.warn('Could not record discount savings:', error);
   }
 };
+
+// --- SALES LEDGER REAL-TIME OPERATIONS ---
+
+export const seedSalesLedgerToFirestore = async (): Promise<void> => {
+  try {
+    // Only seed if explicit initial records are provided
+    if (INITIAL_SAMPLE_SALES_LEDGER.length === 0) return;
+    const batch = writeBatch(db);
+    INITIAL_SAMPLE_SALES_LEDGER.forEach(order => {
+      const ref = doc(db, SALES_LEDGER_COLLECTION, order.id);
+      batch.set(ref, order);
+    });
+    await batch.commit();
+  } catch (error) {
+    console.warn('Could not auto-seed sales ledger to Firestore:', error);
+  }
+};
+
+export const subscribeToSalesLedger = (
+  onUpdate: (orders: LiveOrder[]) => void,
+  onError?: (err: any) => void
+): Unsubscribe => {
+  const q = query(collection(db, SALES_LEDGER_COLLECTION), orderBy('createdAt', 'desc'));
+  return onSnapshot(q, (snapshot) => {
+    if (snapshot.empty) {
+      onUpdate([]);
+    } else {
+      const orders = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as LiveOrder));
+      onUpdate(orders);
+    }
+  }, (error) => {
+    console.warn('Realtime sales ledger sync notice:', error);
+    if (onError) onError(error);
+  });
+};
+
+export const fetchSalesLedger = async (): Promise<LiveOrder[]> => {
+  try {
+    const q = query(collection(db, SALES_LEDGER_COLLECTION), orderBy('createdAt', 'desc'));
+    const snapshot = await getDocs(q);
+    if (snapshot.empty) {
+      return [];
+    }
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LiveOrder));
+  } catch (error) {
+    console.warn('Could not fetch sales ledger from Firestore (using fallback):', error);
+    return [];
+  }
+};
+
+export const saveSalesOrder = async (order: LiveOrder): Promise<void> => {
+  try {
+    const orderRef = doc(db, SALES_LEDGER_COLLECTION, order.id);
+    await setDoc(orderRef, order, { merge: true });
+  } catch (error) {
+    console.error('Error saving sales order to Firestore:', error);
+    throw error;
+  }
+};
+
+export const batchSaveSalesOrders = async (orders: LiveOrder[]): Promise<void> => {
+  try {
+    const batch = writeBatch(db);
+    orders.forEach(order => {
+      const orderRef = doc(db, SALES_LEDGER_COLLECTION, order.id);
+      batch.set(orderRef, order, { merge: true });
+    });
+    await batch.commit();
+  } catch (error) {
+    console.error('Error batch saving sales orders to Firestore:', error);
+    throw error;
+  }
+};
+
+// --- STORE COUNTER MULTI-DEVICE SYNC ---
+const STORE_COUNTER_COLLECTION = 'store_counter';
+const STORE_COUNTER_DOC_ID = 'status';
+
+export interface StoreCounterState {
+  isOpen: boolean;
+  collectedRevenue: number;
+  itemsCompletedCount: number;
+  guestSeqNumber: number;
+  lastResetAt: number;
+  lastUpdatedAt: number;
+}
+
+export const DEFAULT_STORE_COUNTER_STATE: StoreCounterState = {
+  isOpen: false,
+  collectedRevenue: 0,
+  itemsCompletedCount: 0,
+  guestSeqNumber: 101,
+  lastResetAt: Date.now(),
+  lastUpdatedAt: Date.now()
+};
+
+export const subscribeToCounterState = (
+  onUpdate: (state: StoreCounterState) => void,
+  onError?: (err: any) => void
+): Unsubscribe => {
+  const docRef = doc(db, STORE_COUNTER_COLLECTION, STORE_COUNTER_DOC_ID);
+  return onSnapshot(docRef, (snapshot) => {
+    if (snapshot.exists()) {
+      onUpdate({ ...DEFAULT_STORE_COUNTER_STATE, ...snapshot.data() } as StoreCounterState);
+    } else {
+      onUpdate(DEFAULT_STORE_COUNTER_STATE);
+    }
+  }, (error) => {
+    console.warn('Realtime counter state sync notice:', error);
+    if (onError) onError(error);
+  });
+};
+
+export const saveCounterState = async (updates: Partial<StoreCounterState>): Promise<void> => {
+  try {
+    const docRef = doc(db, STORE_COUNTER_COLLECTION, STORE_COUNTER_DOC_ID);
+    await setDoc(docRef, {
+      ...updates,
+      lastUpdatedAt: Date.now()
+    }, { merge: true });
+  } catch (error) {
+    console.error('Error saving counter state to Firestore:', error);
+    throw error;
+  }
+};
+
+export const resetCounterState = async (): Promise<void> => {
+  try {
+    const docRef = doc(db, STORE_COUNTER_COLLECTION, STORE_COUNTER_DOC_ID);
+    await setDoc(docRef, {
+      isOpen: false,
+      collectedRevenue: 0,
+      itemsCompletedCount: 0,
+      guestSeqNumber: 101,
+      lastResetAt: Date.now(),
+      lastUpdatedAt: Date.now()
+    });
+  } catch (error) {
+    console.error('Error resetting counter state in Firestore:', error);
+    throw error;
+  }
+};
+
+// --- LIVE ORDERS & KITCHEN QUEUE MULTI-DEVICE SYNC ---
+const LIVE_ORDERS_COLLECTION = 'live_orders';
+
+export const subscribeToLiveOrders = (
+  onUpdate: (orders: LiveOrder[]) => void,
+  onError?: (err: any) => void
+): Unsubscribe => {
+  const q = query(collection(db, LIVE_ORDERS_COLLECTION), orderBy('createdAt', 'asc'));
+  return onSnapshot(q, (snapshot) => {
+    if (snapshot.empty) {
+      onUpdate([]);
+    } else {
+      const orders = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as LiveOrder));
+      onUpdate(orders);
+    }
+  }, (error) => {
+    console.warn('Realtime live orders sync notice:', error);
+    if (onError) onError(error);
+  });
+};
+
+export const saveLiveOrder = async (order: LiveOrder): Promise<void> => {
+  try {
+    const orderRef = doc(db, LIVE_ORDERS_COLLECTION, order.id);
+    await setDoc(orderRef, order, { merge: true });
+  } catch (error) {
+    console.error('Error saving live order to Firestore:', error);
+    throw error;
+  }
+};
+
+export const updateLiveOrderStatus = async (
+  orderId: string, 
+  status: LiveOrder['status'], 
+  completedAt?: number
+): Promise<void> => {
+  try {
+    const orderRef = doc(db, LIVE_ORDERS_COLLECTION, orderId);
+    const updates: Record<string, any> = { status };
+    if (completedAt) updates.completedAt = completedAt;
+    await updateDoc(orderRef, updates);
+  } catch (error) {
+    console.error('Error updating live order status in Firestore:', error);
+    throw error;
+  }
+};
+
+export const cancelLiveOrder = async (orderId: string): Promise<void> => {
+  try {
+    const orderRef = doc(db, LIVE_ORDERS_COLLECTION, orderId);
+    await updateDoc(orderRef, { status: 'cancelled' });
+  } catch (error) {
+    console.error('Error cancelling live order in Firestore:', error);
+    throw error;
+  }
+};
+
+export const deleteLiveOrder = async (orderId: string): Promise<void> => {
+  try {
+    const orderRef = doc(db, LIVE_ORDERS_COLLECTION, orderId);
+    await deleteDoc(orderRef);
+  } catch (error) {
+    console.error('Error deleting live order from Firestore:', error);
+    throw error;
+  }
+};
+
+export const clearLiveOrders = async (): Promise<void> => {
+  try {
+    const q = query(collection(db, LIVE_ORDERS_COLLECTION));
+    const snapshot = await getDocs(q);
+    if (!snapshot.empty) {
+      const batch = writeBatch(db);
+      snapshot.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+    }
+  } catch (error) {
+    console.error('Error clearing live orders from Firestore:', error);
+    throw error;
+  }
+};
+
+// --- STAFF MEMBERS MULTI-DEVICE SYNC ---
+const STAFF_COLLECTION = 'staff_members';
+
+export interface StaffMemberRecord {
+  uid: string;
+  email: string;
+  displayName: string;
+  jobTitle: string;
+  role: 'staff';
+  password?: string;
+  createdAt: number;
+}
+
+export const subscribeToStaffMembers = (
+  onUpdate: (staff: StaffMemberRecord[]) => void,
+  onError?: (err: any) => void
+): Unsubscribe => {
+  const q = query(collection(db, STAFF_COLLECTION), orderBy('createdAt', 'asc'));
+  return onSnapshot(q, (snapshot) => {
+    if (snapshot.empty) {
+      onUpdate([]);
+    } else {
+      const staff = snapshot.docs.map(d => ({ uid: d.id, ...d.data() } as StaffMemberRecord));
+      onUpdate(staff);
+    }
+  }, (error) => {
+    console.warn('Realtime staff sync notice:', error);
+    if (onError) onError(error);
+  });
+};
+
+export const fetchStaffMembers = async (): Promise<StaffMemberRecord[]> => {
+  try {
+    const q = query(collection(db, STAFF_COLLECTION), orderBy('createdAt', 'asc'));
+    const snapshot = await getDocs(q);
+    if (snapshot.empty) {
+      return [];
+    }
+    return snapshot.docs.map(d => ({ uid: d.id, ...d.data() } as StaffMemberRecord));
+  } catch (error) {
+    console.warn('Error fetching staff members:', error);
+    return [];
+  }
+};
+
+export const saveStaffMember = async (staff: StaffMemberRecord): Promise<void> => {
+  try {
+    const ref = doc(db, STAFF_COLLECTION, staff.uid);
+    await setDoc(ref, staff, { merge: true });
+  } catch (error) {
+    console.error('Error saving staff member to Firestore:', error);
+    throw error;
+  }
+};
+
+export const deleteStaffMember = async (uid: string): Promise<void> => {
+  try {
+    const ref = doc(db, STAFF_COLLECTION, uid);
+    await deleteDoc(ref);
+  } catch (error) {
+    console.error('Error deleting staff member from Firestore:', error);
+    throw error;
+  }
+};
+
 

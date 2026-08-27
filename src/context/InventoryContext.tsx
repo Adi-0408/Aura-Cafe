@@ -98,10 +98,10 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       } catch {}
     }
-    return INITIAL_SAMPLE_RESTOCK_ORDERS;
+    return [];
   });
   const [localStockLogs, setLocalStockLogs] = useState<Record<string, StockLogEntry[]>>(() => {
     const saved = localStorage.getItem('aura_stock_logs_v1');
@@ -126,23 +126,21 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   useEffect(() => {
     // 1. Subscribe to real-time Cloud Firestore inventory sync
     const unsubInv = firebaseService.subscribeToInventory((items) => {
-      if (items && items.length > 0) {
-        setInventory(items);
+      setInventory(items || []);
+      if (items) {
         mockStorage.saveInventory(items);
       }
       setLoading(false);
     }, (err) => {
       console.warn('Firestore realtime inventory fallback to local:', err);
       const local = mockStorage.getInventory();
-      setInventory(local);
+      setInventory(local || []);
       setLoading(false);
     });
 
     // 2. Subscribe to real-time Cloud Firestore restock orders sync
     const unsubOrders = firebaseService.subscribeToRestockOrders((orders) => {
-      if (orders && orders.length > 0) {
-        setRestockOrders(orders);
-      }
+      setRestockOrders(orders || []);
     }, (err) => {
       console.warn('Firestore realtime restock orders fallback:', err);
     });

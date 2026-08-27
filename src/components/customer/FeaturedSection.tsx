@@ -7,6 +7,9 @@ import { ArrowRight, Sparkles } from 'lucide-react';
 export const FeaturedSection: React.FC = () => {
   const { menuItems } = useMenu();
   const featured = menuItems.filter(item => item.featured).slice(0, 4);
+  const displayItems = featured.length > 0 ? featured : menuItems.slice(0, 4);
+
+  if (menuItems.length === 0) return null;
 
   return (
     <section className="py-20 bg-[#F6F9FA]">
@@ -38,7 +41,7 @@ export const FeaturedSection: React.FC = () => {
 
         {/* Featured Items Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {featured.map((item) => (
+          {displayItems.map((item) => (
             <MenuItemCard key={item.id} item={item} />
           ))}
         </div>

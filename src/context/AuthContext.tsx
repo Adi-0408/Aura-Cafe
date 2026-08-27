@@ -11,7 +11,14 @@ import {
 } from 'firebase/auth';
 import { auth } from '../config/firebaseConfig';
 import { UserProfile, UserRole } from '../types';
-import { syncUserToFirestore, fetchUsersFromFirestore, findUserByEmail } from '../services/firebaseService';
+import { 
+  syncUserToFirestore, 
+  fetchUsersFromFirestore, 
+  findUserByEmail, 
+  subscribeToStaffMembers, 
+  saveStaffMember, 
+  deleteStaffMember 
+} from '../services/firebaseService';
 
 export interface StaffMember {
   uid: string;
@@ -88,10 +95,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [customersList, setCustomersList] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Sync staff list to local storage
   useEffect(() => {
-    localStorage.setItem('aura_staff_list', JSON.stringify(staffList));
-  }, [staffList]);
+    const unsubStaff = subscribeToStaffMembers((remoteStaff) => {
+      if (remoteStaff && remoteStaff.length > 0) {
+        setStaffList(remoteStaff as StaffMember[]);
+      } else {
+        DEFAULT_STAFF_MEMBERS.forEach(s => saveStaffMember(s as any).catch(console.warn));
+      }
+    });
+    return () => unsubStaff();
+  }, []);
 
   // Load all registered customers from Firestore
   const refreshCustomers = async () => {
@@ -395,6 +408,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setStaffList(prev => [newStaff, ...prev]);
 
     // Sync to Firestore database
+    await saveStaffMember(newStaff as any);
     await syncUserToFirestore({
       uid: newStaff.uid,
       email: newStaff.email,
@@ -413,6 +427,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error('Unauthorized: Only administrators can remove staff members.');
     }
     setStaffList(prev => prev.filter(s => s.uid !== uid));
+    await deleteStaffMember(uid);
   };
 
   const logout = async () => {
