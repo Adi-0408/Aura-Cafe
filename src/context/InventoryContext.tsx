@@ -434,20 +434,31 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       };
     });
 
-    // Credit inventory stock for each received item
+    // Make an updated copy of the inventory array
+    const updatedInventory = [...inventory];
+    const itemUpdates: { id: string; newQty: number; prevQty: number }[] = [];
+
     for (const orderItem of updatedOrderItems) {
-      const invItem = inventory.find(i => i.id === orderItem.itemId);
-      if (invItem) {
-        const addedQty = orderItem.quantityReceived || orderItem.quantityOrdered;
-        const newQty = Number((invItem.quantity + addedQty).toFixed(2));
-        await updateStockQuantity(invItem.id, newQty, {
-          previousQty: invItem.quantity,
-          reason: 'Restock Delivery',
-          userDisplayName: params?.receivedBy || 'Staff Operations',
-          notes: `Received delivery for Order #${targetOrder.orderNumber}${params?.deliveryInvoiceNo ? ` (Invoice #${params.deliveryInvoiceNo})` : ''}`
-        });
+      const itemIndex = updatedInventory.findIndex(i => i.id === orderItem.itemId);
+      if (itemIndex !== -1) {
+        const currentItem = updatedInventory[itemIndex];
+        const addedQty = orderItem.quantityReceived !== undefined 
+          ? orderItem.quantityReceived 
+          : orderItem.quantityOrdered;
+        const newQty = Number((currentItem.quantity + addedQty).toFixed(2));
+        
+        updatedInventory[itemIndex] = {
+          ...currentItem,
+          quantity: newQty,
+          updatedAt: Date.now()
+        };
+        itemUpdates.push({ id: currentItem.id, newQty, prevQty: currentItem.quantity });
       }
     }
+
+    // Save updated inventory to state & local cache immediately
+    setInventory(updatedInventory);
+    mockStorage.saveInventory(updatedInventory);
 
     const updatedOrder: RestockOrder = {
       ...targetOrder,
@@ -463,6 +474,17 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setRestockOrders(prev => prev.map(o => o.id === orderId ? updatedOrder : o));
 
     try {
+      // 1. Sync every stock update to Cloud Firestore
+      for (const update of itemUpdates) {
+        await firebaseService.updateStockQuantity(update.id, update.newQty, {
+          previousQty: update.prevQty,
+          reason: 'Restock Delivery',
+          userDisplayName: params?.receivedBy || 'Staff Operations',
+          notes: `Received delivery for Order #${targetOrder.orderNumber}${params?.deliveryInvoiceNo ? ` (Invoice #${params.deliveryInvoiceNo})` : ''}`
+        });
+      }
+
+      // 2. Sync restock order status to Cloud Firestore
       await firebaseService.updateRestockOrder(orderId, {
         status: 'received',
         receivedAt: updatedOrder.receivedAt,
@@ -473,7 +495,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         notes: updatedOrder.notes
       });
     } catch (e) {
-      console.warn('Updated restock order locally:', e);
+      console.warn('Updated restock order sync note:', e);
     } finally {
       setIsSyncing(false);
     }
@@ -517,7 +539,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     const updated = inventory.map(item => {
       if (!item.isArchived && item.quantity <= item.minThreshold) {
-        const parLevel = item.optimalParLevel || (item.minThreshold * 2.5);
+        const parLevel = Math.max(item.optimalParLevel || 0, item.minThreshold * 2.5, item.minThreshold + 15);
         const newQty = Math.max(parLevel, item.quantity + 15);
         return { ...item, quantity: newQty, updatedAt: Date.now() };
       }
@@ -529,7 +551,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     try {
       for (const item of lowStock) {
-        const parLevel = item.optimalParLevel || (item.minThreshold * 2.5);
+        const parLevel = Math.max(item.optimalParLevel || 0, item.minThreshold * 2.5, item.minThreshold + 15);
         const newQty = Math.max(parLevel, item.quantity + 15);
         await firebaseService.updateStockQuantity(item.id, newQty, {
           previousQty: item.quantity,
@@ -588,7 +610,6 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     try {
       await firebaseService.addStockLog(itemId, {
         itemId,
-        itemName: item?.name,
         previousQty,
         newQty,
         changeDelta: delta,
@@ -615,8 +636,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     return Object.entries(supplierGroups).map(([supplierName, items]) => {
       const orderItems: SupplierOrderItem[] = items.map(item => {
-        const parLevel = item.optimalParLevel || Math.max(item.minThreshold * 2.5, item.minThreshold + 10);
-        const suggestedReorderQty = Math.max(0, Math.ceil(parLevel - item.quantity));
+        const parLevel = Math.max(item.optimalParLevel || 0, item.minThreshold * 2.5, item.minThreshold + 15);
+        const suggestedReorderQty = Math.max(10, Math.ceil(parLevel - item.quantity));
         const estimatedCost = suggestedReorderQty * item.unitCost;
 
         return {

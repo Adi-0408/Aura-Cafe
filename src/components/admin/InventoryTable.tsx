@@ -235,8 +235,11 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
               onClick={() => {
                 const lowItems = inventory.filter(i => !i.isArchived && i.quantity <= i.minThreshold);
                 const targets = lowItems.length > 0
-                  ? lowItems.map(item => ({ item, suggestedQty: Math.max(10, Math.ceil((item.optimalParLevel || item.minThreshold * 2.5) - item.quantity)) }))
-                  : inventory.slice(0, 4).map(item => ({ item, suggestedQty: 10 }));
+                  ? lowItems.map(item => {
+                      const par = Math.max(item.optimalParLevel || 0, item.minThreshold * 2.5, item.minThreshold + 15);
+                      return { item, suggestedQty: Math.max(10, Math.ceil(par - item.quantity)) };
+                    })
+                  : inventory.filter(i => !i.isArchived).map(item => ({ item, suggestedQty: Math.max(10, item.minThreshold * 2) }));
                 setOrderModalTargets(targets);
                 setIsOrderModalOpen(true);
               }}

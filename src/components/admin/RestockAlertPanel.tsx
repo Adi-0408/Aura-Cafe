@@ -35,15 +35,20 @@ export const RestockAlertPanel: React.FC = () => {
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
 
   const openOrderModalForSingle = (item: InventoryItem, qty?: number) => {
-    setOrderModalItems([{ item, suggestedQty: qty }]);
+    const par = Math.max(item.optimalParLevel || 0, item.minThreshold * 2.5, item.minThreshold + 15);
+    const suggested = qty !== undefined ? qty : Math.max(10, Math.ceil(par - item.quantity));
+    setOrderModalItems([{ item, suggestedQty: suggested }]);
     setIsOrderModalOpen(true);
   };
 
   const openOrderModalForAll = () => {
-    const allTargets = criticalRestockItems.map(item => ({
-      item,
-      suggestedQty: Math.max(10, Math.ceil((item.optimalParLevel || item.minThreshold * 2.5) - item.quantity))
-    }));
+    const allTargets = criticalRestockItems.map(item => {
+      const par = Math.max(item.optimalParLevel || 0, item.minThreshold * 2.5, item.minThreshold + 15);
+      return {
+        item,
+        suggestedQty: Math.max(10, Math.ceil(par - item.quantity))
+      };
+    });
     setOrderModalItems(allTargets);
     setIsOrderModalOpen(true);
   };

@@ -58,8 +58,8 @@ export const RestockOrderModal: React.FC<RestockOrderModalProps> = ({
 
         setOrderItems(
           initialItems.map(({ item, suggestedQty }) => {
-            const par = item.optimalParLevel || Math.max(item.minThreshold * 2.5, item.minThreshold + 10);
-            const qty = suggestedQty || Math.max(5, Math.ceil(par - item.quantity));
+            const par = Math.max(item.optimalParLevel || 0, item.minThreshold * 2.5, item.minThreshold + 15);
+            const qty = suggestedQty !== undefined ? suggestedQty : Math.max(10, Math.ceil(par - item.quantity));
             return {
               itemId: item.id,
               quantityOrdered: qty,
@@ -68,25 +68,30 @@ export const RestockOrderModal: React.FC<RestockOrderModalProps> = ({
           })
         );
       } else {
-        // Default to first low stock items
+        // Default to ALL depleted / low stock items
         const lowStock = inventory.filter(i => !i.isArchived && i.quantity <= i.minThreshold);
         if (lowStock.length > 0) {
           const first = lowStock[0];
           setSelectedSupplier(first.supplier || 'Specialty Origin Roasters & Farm Direct');
           setOrderItems(
-            lowStock.slice(0, 4).map(item => ({
-              itemId: item.id,
-              quantityOrdered: Math.max(5, Math.ceil((item.optimalParLevel || item.minThreshold * 2.5) - item.quantity)),
-              unitCost: item.unitCost
-            }))
+            lowStock.map(item => {
+              const par = Math.max(item.optimalParLevel || 0, item.minThreshold * 2.5, item.minThreshold + 15);
+              return {
+                itemId: item.id,
+                quantityOrdered: Math.max(10, Math.ceil(par - item.quantity)),
+                unitCost: item.unitCost
+              };
+            })
           );
         } else if (inventory.length > 0) {
           setSelectedSupplier(inventory[0].supplier || 'Specialty Origin Roasters & Farm Direct');
-          setOrderItems([{
-            itemId: inventory[0].id,
-            quantityOrdered: 10,
-            unitCost: inventory[0].unitCost
-          }]);
+          setOrderItems(
+            inventory.map(item => ({
+              itemId: item.id,
+              quantityOrdered: Math.max(10, item.minThreshold * 2),
+              unitCost: item.unitCost
+            }))
+          );
         }
       }
     }
