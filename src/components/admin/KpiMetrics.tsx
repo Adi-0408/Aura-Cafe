@@ -7,6 +7,7 @@ import {
   Boxes, 
   DollarSign, 
   AlertTriangle, 
+  AlertOctagon,
   ArrowUpRight 
 } from 'lucide-react';
 
@@ -63,15 +64,36 @@ export const KpiMetrics: React.FC<KpiMetricsProps> = ({ activeFilter, onSelectFi
       icon: <AlertTriangle className="w-5 h-5 text-amber-600" />,
       accentColor: 'from-amber-500 to-amber-700',
       colorClass: stats.lowStockCount > 0 ? 'text-amber-900' : 'text-stone-700',
-      borderClass: 'border-[#D2DFE2]/80 bg-white hover:border-amber-400 hover:shadow-warm-sm',
+      borderClass: activeFilter === 'low_stock'
+        ? 'border-amber-500 ring-2 ring-amber-500/20 bg-gradient-to-b from-white to-amber-50/40 shadow-warm-md'
+        : stats.lowStockCount > 0 
+          ? 'border-amber-200 bg-white hover:border-amber-400 hover:shadow-warm-sm' 
+          : 'border-[#D2DFE2]/80 bg-white hover:border-amber-400 hover:shadow-warm-sm',
       bgIcon: stats.lowStockCount > 0 ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-stone-100 text-stone-600 border border-stone-200',
       badge: stats.lowStockCount > 0 ? 'Needs Restock' : 'All Clear',
-      navigateTo: '/admin/restock'
+      navigateTo: null
+    },
+    {
+      id: 'out_of_stock' as StockFilter,
+      label: 'Out of Stock Warnings',
+      value: stats.outOfStockCount,
+      subtext: '0 Units on Hand (Critical)',
+      icon: <AlertOctagon className="w-5 h-5 text-rose-600" />,
+      accentColor: 'from-rose-500 to-rose-700',
+      colorClass: stats.outOfStockCount > 0 ? 'text-rose-900' : 'text-stone-700',
+      borderClass: activeFilter === 'out_of_stock'
+        ? 'border-rose-500 ring-2 ring-rose-500/20 bg-gradient-to-b from-white to-rose-50/40 shadow-warm-md'
+        : stats.outOfStockCount > 0 
+          ? 'border-rose-300 bg-rose-50/20 hover:border-rose-400 hover:shadow-warm-sm' 
+          : 'border-[#D2DFE2]/80 bg-white hover:border-rose-400 hover:shadow-warm-sm',
+      bgIcon: stats.outOfStockCount > 0 ? 'bg-rose-100 text-rose-800 border border-rose-300 animate-pulse' : 'bg-stone-100 text-stone-600 border border-stone-200',
+      badge: stats.outOfStockCount > 0 ? 'Critical Deficit' : 'No Shortages',
+      navigateTo: null
     },
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
       {cards.map((card) => {
         const isClickable = !card.noFilter || Boolean(card.navigateTo);
         return (
@@ -117,7 +139,13 @@ export const KpiMetrics: React.FC<KpiMetricsProps> = ({ activeFilter, onSelectFi
                   <ArrowUpRight className="w-3.5 h-3.5" />
                 </span>
               ) : isClickable && (
-                <span className="inline-flex items-center gap-1 text-[#1B8585] font-bold text-xs group-hover:translate-x-0.5 transition-transform">
+                <span className={`inline-flex items-center gap-1 font-bold text-xs group-hover:translate-x-0.5 transition-transform ${
+                  card.id === 'out_of_stock' 
+                    ? (activeFilter === 'out_of_stock' ? 'text-rose-700' : 'text-rose-600')
+                    : card.id === 'low_stock' 
+                    ? (activeFilter === 'low_stock' ? 'text-amber-700' : 'text-amber-600')
+                    : 'text-[#1B8585]'
+                }`}>
                   <span>{activeFilter === card.id ? 'Active Filter' : 'Filter View'}</span>
                   <ArrowUpRight className="w-3.5 h-3.5" />
                 </span>

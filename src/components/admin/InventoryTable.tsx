@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useInventory } from '../../context/InventoryContext';
 import { InventoryItem, InventoryCategory, StockFilter, RestockOrder } from '../../types';
 import { StockStatusBadge } from '../common/Badge';
@@ -76,6 +76,10 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   const [statusFilter, setStatusFilter] = useState<StockFilter>(initialFilter);
   const [sortField, setSortField] = useState<keyof InventoryItem>('name');
   const [sortAsc, setSortAsc] = useState(true);
+
+  useEffect(() => {
+    setStatusFilter(initialFilter);
+  }, [initialFilter]);
   
   // Modals & Drawers state
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);

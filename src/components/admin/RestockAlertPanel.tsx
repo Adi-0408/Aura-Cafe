@@ -7,6 +7,7 @@ import { ReceiveDeliveryModal } from './ReceiveDeliveryModal';
 import { formatCurrency } from '../../utils/currency';
 import { 
   AlertTriangle, 
+  AlertOctagon,
   Phone, 
   Mail, 
   ChevronDown, 
@@ -23,7 +24,8 @@ export const RestockAlertPanel: React.FC = () => {
     criticalRestockItems, 
     getIncomingQtyForItem, 
     getActiveRestockOrderForItem, 
-    isSyncing 
+    isSyncing,
+    stats
   } = useInventory();
 
   const [isExpanded, setIsExpanded] = useState(true);
@@ -66,13 +68,22 @@ export const RestockAlertPanel: React.FC = () => {
               <AlertTriangle className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="font-serif font-bold text-base text-[#10222B]">
                   Critical Stock Depletion Requisition ({criticalRestockItems.length} Items Below Threshold)
                 </h3>
-                <span className="px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 text-[10px] font-bold">
-                  Action Needed
-                </span>
+                {stats.outOfStockCount > 0 && (
+                  <span className="px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-900 border border-rose-200 text-[10px] font-bold flex items-center gap-1 animate-pulse">
+                    <AlertOctagon className="w-3 h-3 text-rose-600" />
+                    {stats.outOfStockCount} Out of Stock
+                  </span>
+                )}
+                {stats.lowStockCount > 0 && (
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-900 text-[10px] font-bold flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3 text-amber-600" />
+                    {stats.lowStockCount} Low Stock
+                  </span>
+                )}
               </div>
               <p className="text-xs text-stone-600 mt-0.5">
                 Place supplier restock orders. When delivery arrives, verify counts to receive into on-hand stock.
